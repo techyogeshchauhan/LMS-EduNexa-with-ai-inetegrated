@@ -83,8 +83,8 @@ export const AuthPage: React.FC<AuthPageProps> = ({ onBackToLanding }) => {
         </div>
       </div>
 
-      <div className="flex items-center justify-center min-h-screen p-4 pt-20">
-        <div className="w-full max-w-6xl mx-auto grid lg:grid-cols-2 gap-12 items-center">
+      <div className="flex items-center justify-center min-h-screen p-4 pt-20 pb-8">
+        <div className="w-full max-w-6xl mx-auto grid lg:grid-cols-2 gap-8 lg:gap-12 items-center">
           {/* Left Side - Enhanced Branding */}
           <div className="hidden lg:block">
             <div className="space-y-8">
@@ -159,20 +159,20 @@ export const AuthPage: React.FC<AuthPageProps> = ({ onBackToLanding }) => {
           </div>
 
           {/* Right Side - Enhanced Auth Forms */}
-          <div className="w-full">
-            <div className="bg-white rounded-2xl shadow-2xl p-8 lg:p-10 border border-white/20 backdrop-blur-sm">
+          <div className="w-full max-w-md mx-auto lg:max-w-none">
+            <div className="bg-white rounded-2xl shadow-2xl p-6 sm:p-8 lg:p-10 border border-white/20 backdrop-blur-sm">
               {/* Mobile Header */}
-              <div className="lg:hidden text-center mb-8">
-                <div className="flex items-center justify-center gap-3 mb-4">
+              <div className="lg:hidden text-center mb-6">
+                <div className="flex items-center justify-center gap-2 mb-3">
                   <div className="bg-gradient-to-r from-blue-600 to-purple-600 p-2 rounded-xl">
-                    <Brain className="h-6 w-6 text-white" />
+                    <Brain className="h-5 w-5 text-white" />
                   </div>
                   <div className="bg-gradient-to-r from-purple-600 to-green-600 p-2 rounded-xl">
-                    <GraduationCap className="h-6 w-6 text-white" />
+                    <GraduationCap className="h-5 w-5 text-white" />
                   </div>
                 </div>
-                <h2 className="text-2xl font-bold text-gray-900 mb-2">Welcome to EduNexa</h2>
-                <p className="text-gray-600">AI-Powered Learning Platform</p>
+                <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mb-1">Welcome to EduNexa</h2>
+                <p className="text-sm text-gray-600">AI-Powered Learning Platform</p>
               </div>
 
               {/* Auth Forms */}
@@ -203,10 +203,10 @@ export const AuthPage: React.FC<AuthPageProps> = ({ onBackToLanding }) => {
               )}
 
               {/* Additional Info */}
-              <div className="mt-8 pt-6 border-t border-gray-200">
-                <div className="text-center text-sm text-gray-500">
+              <div className="mt-6 pt-4 border-t border-gray-200">
+                <div className="text-center text-xs sm:text-sm text-gray-500">
                   <p className="mb-2">By continuing, you agree to our Terms of Service and Privacy Policy</p>
-                  <div className="flex items-center justify-center gap-4">
+                  <div className="flex items-center justify-center gap-3 sm:gap-4 flex-wrap">
                     <span>Secure & Private</span>
                     <span>Available Worldwide</span>
                   </div>
@@ -215,15 +215,15 @@ export const AuthPage: React.FC<AuthPageProps> = ({ onBackToLanding }) => {
             </div>
 
             {/* Mobile Features */}
-            <div className="lg:hidden mt-8 space-y-4">
+            <div className="lg:hidden mt-6 space-y-3 max-w-md mx-auto">
               {features.slice(0, 2).map((feature, index) => (
-                <div key={index} className="flex items-center gap-4 p-4 bg-white/70 rounded-xl backdrop-blur-sm">
-                  <div className="bg-gradient-to-r from-blue-600 to-purple-600 p-2 rounded-lg">
-                    <feature.icon className="h-5 w-5 text-white" />
+                <div key={index} className="flex items-start gap-3 p-3 bg-white/70 rounded-xl backdrop-blur-sm">
+                  <div className="bg-gradient-to-r from-blue-600 to-purple-600 p-2 rounded-lg flex-shrink-0">
+                    <feature.icon className="h-4 w-4 text-white" />
                   </div>
                   <div>
-                    <h3 className="font-semibold text-gray-900">{feature.title}</h3>
-                    <p className="text-sm text-gray-600">{feature.description}</p>
+                    <h3 className="font-semibold text-gray-900 text-sm">{feature.title}</h3>
+                    <p className="text-xs text-gray-600">{feature.description}</p>
                   </div>
                 </div>
               ))}
