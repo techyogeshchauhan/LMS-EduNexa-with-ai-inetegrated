@@ -1,4 +1,4 @@
-from flask import Blueprint, request, jsonify, current_app
+from flask import Blueprint, request, jsonify, current_app, send_from_directory
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from bson import ObjectId
 from datetime import datetime
@@ -8,10 +8,19 @@ from routes.notifications import create_notification
 
 courses_bp = Blueprint('courses', __name__)
 
-ALLOWED_EXTENSIONS = {'pdf', 'doc', 'docx', 'ppt', 'pptx', 'mp4', 'avi', 'mov', 'jpg', 'jpeg', 'png'}
+ALLOWED_EXTENSIONS = {'pdf', 'doc', 'docx', 'ppt', 'pptx', 'mp4', 'avi', 'mov', 'mkv', 'webm', 'jpg', 'jpeg', 'png'}
+VIDEO_EXTENSIONS = {'mp4', 'avi', 'mov', 'mkv', 'webm'}
+
+# Create uploads directory if it doesn't exist
+UPLOAD_FOLDER = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'uploads')
+VIDEO_FOLDER = os.path.join(UPLOAD_FOLDER, 'videos')
+os.makedirs(VIDEO_FOLDER, exist_ok=True)
 
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+def is_video_file(filename):
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in VIDEO_EXTENSIONS
 
 @courses_bp.route('/', methods=['GET'])
 @jwt_required()
@@ -340,6 +349,140 @@ def unenroll_course(course_id):
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+@courses_bp.route('/<course_id>/upload-video', methods=['POST'])
+@jwt_required()
+def upload_video(course_id):
+    try:
+        user_id = get_jwt_identity()
+        db = current_app.db
+        
+        # Check permissions
+        course = db.courses.find_one({'_id': ObjectId(course_id)})
+        if not course:
+            return jsonify({'error': 'Course not found'}), 404
+        
+        user = db.users.find_one({'_id': ObjectId(user_id)})
+        if user['role'] != 'admin' and course['teacher_id'] != user_id:
+            return jsonify({'error': 'Access denied'}), 403
+        
+        # Check if video file is present
+        if 'video' not in request.files:
+            return jsonify({'error': 'No video file provided'}), 400
+        
+        video_file = request.files['video']
+        if video_file.filename == '':
+            return jsonify({'error': 'No video file selected'}), 400
+        
+        if not is_video_file(video_file.filename):
+            return jsonify({'error': 'Invalid video file format'}), 400
+        
+        # Get form data
+        title = request.form.get('title')
+        description = request.form.get('description', '')
+        order = request.form.get('order', 0)
+        duration = request.form.get('duration', '')
+        
+        if not title:
+            return jsonify({'error': 'Video title is required'}), 400
+        
+        # Save video file
+        filename = secure_filename(video_file.filename)
+        timestamp = datetime.utcnow().strftime('%Y%m%d_%H%M%S')
+        unique_filename = f"{course_id}_{timestamp}_{filename}"
+        video_path = os.path.join(VIDEO_FOLDER, unique_filename)
+        video_file.save(video_path)
+        
+        # Create video material record
+        video_data = {
+            'course_id': course_id,
+            'title': title,
+            'description': description,
+            'type': 'video',
+            'filename': unique_filename,
+            'file_path': video_path,
+            'url': f'/api/courses/videos/{unique_filename}',
+            'duration': duration,
+            'order': int(order),
+            'is_required': True,
+            'uploaded_by': user_id,
+            'created_at': datetime.utcnow(),
+            'views': 0,
+            'completed_by': []
+        }
+        
+        result = db.materials.insert_one(video_data)
+        video_data['_id'] = str(result.inserted_id)
+        video_data['material_id'] = str(result.inserted_id)
+        
+        # Notify enrolled students
+        enrollments = db.enrollments.find({'course_id': course_id})
+        for enrollment in enrollments:
+            try:
+                create_notification(
+                    db=db,
+                    user_id=enrollment['student_id'],
+                    title='New Video Added',
+                    message=f'A new video "{title}" has been added to {course["title"]}',
+                    notification_type='info',
+                    link=f'/courses/detail?id={course_id}'
+                )
+            except:
+                pass
+        
+        return jsonify({
+            'message': 'Video uploaded successfully',
+            'video': video_data
+        }), 201
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@courses_bp.route('/videos/<filename>', methods=['GET'])
+@jwt_required()
+def serve_video(filename):
+    try:
+        user_id = get_jwt_identity()
+        db = current_app.db
+        
+        # Find the video material
+        video = db.materials.find_one({'filename': filename, 'type': 'video'})
+        if not video:
+            return jsonify({'error': 'Video not found'}), 404
+        
+        # Check if user has access to this video's course
+        course = db.courses.find_one({'_id': ObjectId(video['course_id'])})
+        if not course:
+            return jsonify({'error': 'Course not found'}), 404
+        
+        user = db.users.find_one({'_id': ObjectId(user_id)})
+        
+        # Check access permissions
+        has_access = False
+        if user['role'] == 'teacher' and course['teacher_id'] == user_id:
+            has_access = True
+        elif user['role'] == 'student':
+            enrollment = db.enrollments.find_one({
+                'course_id': video['course_id'],
+                'student_id': user_id
+            })
+            has_access = enrollment is not None
+        elif user['role'] == 'admin':
+            has_access = True
+        
+        if not has_access:
+            return jsonify({'error': 'Access denied'}), 403
+        
+        # Increment view count
+        db.materials.update_one(
+            {'_id': video['_id']},
+            {'$inc': {'views': 1}}
+        )
+        
+        return send_from_directory(VIDEO_FOLDER, filename)
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
 @courses_bp.route('/<course_id>/materials', methods=['POST'])
 @jwt_required()
 def upload_material(course_id):
@@ -384,6 +527,78 @@ def upload_material(course_id):
             'message': 'Material uploaded successfully',
             'material': material_data
         }), 201
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@courses_bp.route('/<course_id>/progress', methods=['POST'])
+@jwt_required()
+def update_progress(course_id):
+    try:
+        user_id = get_jwt_identity()
+        db = current_app.db
+        
+        # Check if student is enrolled
+        enrollment = db.enrollments.find_one({
+            'course_id': course_id,
+            'student_id': user_id
+        })
+        if not enrollment:
+            return jsonify({'error': 'Not enrolled in this course'}), 403
+        
+        data = request.get_json()
+        material_id = data.get('material_id')
+        completed = data.get('completed', False)
+        watch_time = data.get('watch_time', 0)
+        
+        if not material_id:
+            return jsonify({'error': 'Material ID is required'}), 400
+        
+        # Update completed materials
+        if completed:
+            db.enrollments.update_one(
+                {'_id': enrollment['_id']},
+                {
+                    '$addToSet': {'completed_materials': material_id},
+                    '$set': {'last_accessed': datetime.utcnow()}
+                }
+            )
+            
+            # Mark material as completed by this user
+            db.materials.update_one(
+                {'_id': ObjectId(material_id)},
+                {'$addToSet': {'completed_by': user_id}}
+            )
+        
+        # Calculate overall progress
+        total_materials = db.materials.count_documents({'course_id': course_id, 'is_required': True})
+        completed_materials = len(enrollment.get('completed_materials', []))
+        
+        if total_materials > 0:
+            progress = (completed_materials / total_materials) * 100
+            db.enrollments.update_one(
+                {'_id': enrollment['_id']},
+                {'$set': {'progress': round(progress, 2)}}
+            )
+        
+        # Track video watch time
+        if watch_time > 0:
+            db.video_progress.update_one(
+                {
+                    'student_id': user_id,
+                    'material_id': material_id,
+                    'course_id': course_id
+                },
+                {
+                    '$set': {
+                        'watch_time': watch_time,
+                        'last_watched': datetime.utcnow()
+                    }
+                },
+                upsert=True
+            )
+        
+        return jsonify({'message': 'Progress updated successfully'}), 200
         
     except Exception as e:
         return jsonify({'error': str(e)}), 500

@@ -2,6 +2,7 @@ import React from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { Dashboard } from '../dashboard/Dashboard';
 import { CoursesPage } from '../courses/CoursesPage';
+import { CreateCoursePage } from '../courses/CreateCoursePage';
 import { AssignmentsPage } from '../assignments/AssignmentsPage';
 import { DiscussionsPage } from '../discussions/DiscussionsPage';
 import { AnalyticsPage } from '../analytics/AnalyticsPage';
@@ -18,6 +19,10 @@ import { AssignmentDetailPage } from '../assignments/AssignmentDetailPage';
 import { QuizDetailPage } from '../quizzes/QuizDetailPage';
 import LearnerAnalytics from '../analytics/LearnerAnalytics';
 import UserManagement from '../admin/UserManagement';
+import { VideoManagement } from '../../pages/VideoManagement';
+import { AssignmentTest } from '../test/AssignmentTest';
+import { TeacherAssignmentView } from '../assignments/TeacherAssignmentView';
+import { QuickTest } from '../test/QuickTest';
 
 export const AppRouter: React.FC = () => {
   const { user } = useAuth();
@@ -44,6 +49,10 @@ export const AppRouter: React.FC = () => {
         return <Dashboard />;
       case '/courses':
         return <CoursesPage />;
+      case '/courses/create':
+        return <CreateCoursePage />;
+      case '/videos':
+        return <VideoManagement />;
       case '/assignments':
         return <AssignmentsPage />;
       case '/discussions':
@@ -72,6 +81,10 @@ export const AppRouter: React.FC = () => {
         return <SchedulePage />;
       case '/courses/detail':
         return <CourseDetailPage />;
+      case '/test/assignments':
+        return <AssignmentTest />;
+      case '/test':
+        return <QuickTest />;
       case '/assignments/detail':
         return <AssignmentDetailPage />;
       case '/quizzes/detail':

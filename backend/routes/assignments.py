@@ -330,6 +330,23 @@ def submit_assignment(assignment_id):
         result = db.submissions.insert_one(submission_data)
         submission_data['_id'] = str(result.inserted_id)
         
+        # Send notification to teacher
+        try:
+            course = db.courses.find_one({'_id': ObjectId(assignment['course_id'])})
+            if course:
+                teacher_id = course['teacher_id']
+                create_notification(
+                    db=db,
+                    user_id=teacher_id,
+                    title='New Assignment Submission',
+                    message=f'{user["name"]} has submitted the assignment "{assignment["title"]}"',
+                    notification_type='info',
+                    link=f'/assignments/detail?id={assignment_id}'
+                )
+        except Exception as notif_error:
+            # Don't fail the submission if notification fails
+            print(f"Failed to create teacher notification: {notif_error}")
+        
         return jsonify({
             'message': 'Assignment submitted successfully',
             'submission': submission_data

@@ -31,6 +31,7 @@ export const ProfilePage: React.FC = () => {
     year: user?.year || '',
     semester: user?.semester || '',
     roll_number: user?.roll_number || '',
+    designation: (user as any)?.designation || '',
     location: 'New York, NY',
     bio: 'Passionate learner focused on AI and Machine Learning. Always eager to explore new technologies and share knowledge with the community.',
     website: 'https://johndoe.dev',
@@ -44,12 +45,25 @@ export const ProfilePage: React.FC = () => {
       // Import the authAPI
       const { authAPI } = await import('../../config/api');
       
-      // Call API to update profile
-      await authAPI.updateProfile({
+      // Prepare update data based on role
+      const updateData: any = {
         name: formData.name,
         phone: formData.phone,
         profile_pic: profilePic
-      });
+      };
+
+      // Add role-specific fields
+      if (user?.role === 'student') {
+        updateData.department = formData.department;
+        updateData.year = formData.year;
+        updateData.semester = formData.semester;
+      } else if (user?.role === 'teacher') {
+        updateData.department = formData.department;
+        updateData.designation = formData.designation;
+      }
+      
+      // Call API to update profile
+      await authAPI.updateProfile(updateData);
 
       await refreshUser();
       setIsEditing(false);
@@ -71,6 +85,7 @@ export const ProfilePage: React.FC = () => {
       year: user?.year || '',
       semester: user?.semester || '',
       roll_number: user?.roll_number || '',
+      designation: (user as any)?.designation || '',
       location: 'New York, NY',
       bio: 'Passionate learner focused on AI and Machine Learning. Always eager to explore new technologies and share knowledge with the community.',
       website: 'https://johndoe.dev',
@@ -329,25 +344,133 @@ export const ProfilePage: React.FC = () => {
                 <>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">Roll Number</label>
-                    <p className="text-gray-900">{formData.roll_number || 'Not provided'}</p>
+                    <p className="text-gray-900">{user?.roll_number || formData.roll_number || 'Not provided'}</p>
+                    <p className="text-xs text-gray-500">Roll number cannot be changed</p>
                   </div>
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">Department</label>
-                    <p className="text-gray-900">{formData.department || 'Not provided'}</p>
+                    {isEditing ? (
+                      <input
+                        type="text"
+                        value={formData.department}
+                        onChange={(e) => setFormData({ ...formData, department: e.target.value })}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      />
+                    ) : (
+                      <p className="text-gray-900">{formData.department || 'Not provided'}</p>
+                    )}
                   </div>
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">Year</label>
-                    <p className="text-gray-900">{formData.year || 'Not provided'}</p>
+                    {isEditing ? (
+                      <select
+                        value={formData.year}
+                        onChange={(e) => setFormData({ ...formData, year: e.target.value })}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      >
+                        <option value="">Select Year</option>
+                        <option value="1st Year">1st Year</option>
+                        <option value="2nd Year">2nd Year</option>
+                        <option value="3rd Year">3rd Year</option>
+                        <option value="4th Year">4th Year</option>
+                        <option value="Final Year">Final Year</option>
+                      </select>
+                    ) : (
+                      <p className="text-gray-900">{formData.year || 'Not provided'}</p>
+                    )}
                   </div>
 
-                  {formData.semester && (
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Semester</label>
-                      <p className="text-gray-900">{formData.semester}</p>
-                    </div>
-                  )}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Semester</label>
+                    {isEditing ? (
+                      <select
+                        value={formData.semester}
+                        onChange={(e) => setFormData({ ...formData, semester: e.target.value })}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      >
+                        <option value="">Select Semester</option>
+                        <option value="1st Semester">1st Semester</option>
+                        <option value="2nd Semester">2nd Semester</option>
+                        <option value="3rd Semester">3rd Semester</option>
+                        <option value="4th Semester">4th Semester</option>
+                        <option value="5th Semester">5th Semester</option>
+                        <option value="6th Semester">6th Semester</option>
+                        <option value="7th Semester">7th Semester</option>
+                        <option value="8th Semester">8th Semester</option>
+                      </select>
+                    ) : (
+                      <p className="text-gray-900">{formData.semester || 'Not provided'}</p>
+                    )}
+                  </div>
+                </>
+              )}
+
+              {user?.role === 'teacher' && (
+                <>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Employee ID</label>
+                    <p className="text-gray-900">{user?.employee_id || 'Not provided'}</p>
+                    <p className="text-xs text-gray-500">Employee ID cannot be changed</p>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Department</label>
+                    {isEditing ? (
+                      <input
+                        type="text"
+                        value={formData.department}
+                        onChange={(e) => setFormData({ ...formData, department: e.target.value })}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      />
+                    ) : (
+                      <p className="text-gray-900">{formData.department || 'Not provided'}</p>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Designation</label>
+                    {isEditing ? (
+                      <select
+                        value={user?.designation || ''}
+                        onChange={(e) => setFormData({ ...formData, designation: e.target.value })}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      >
+                        <option value="">Select Designation</option>
+                        <option value="Assistant Professor">Assistant Professor</option>
+                        <option value="Associate Professor">Associate Professor</option>
+                        <option value="Professor">Professor</option>
+                        <option value="Lecturer">Lecturer</option>
+                        <option value="Senior Lecturer">Senior Lecturer</option>
+                        <option value="Visiting Faculty">Visiting Faculty</option>
+                        <option value="Guest Lecturer">Guest Lecturer</option>
+                        <option value="Department Head">Department Head</option>
+                      </select>
+                    ) : (
+                      <p className="text-gray-900">{user?.designation || 'Not provided'}</p>
+                    )}
+                  </div>
+                </>
+              )}
+
+              {user?.role === 'super_admin' && (
+                <>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Employee ID</label>
+                    <p className="text-gray-900">{user?.employee_id || 'Not provided'}</p>
+                    <p className="text-xs text-gray-500">Employee ID cannot be changed</p>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Department</label>
+                    <p className="text-gray-900">{formData.department || 'System Administration'}</p>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Designation</label>
+                    <p className="text-gray-900">{user?.designation || 'Super Administrator'}</p>
+                  </div>
                 </>
               )}
             </div>

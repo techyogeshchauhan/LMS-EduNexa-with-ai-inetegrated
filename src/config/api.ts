@@ -7,6 +7,7 @@ export const API_ENDPOINTS = {
   // Authentication
   AUTH: {
     LOGIN: `${API_BASE_URL}/auth/login`,
+    GOOGLE_LOGIN: `${API_BASE_URL}/auth/google/login`,
     REGISTER: `${API_BASE_URL}/auth/register`,
     PROFILE: `${API_BASE_URL}/auth/profile`,
     CHANGE_PASSWORD: `${API_BASE_URL}/auth/change-password`,
@@ -280,6 +281,14 @@ export const apiClient = new ApiClient();
 export const authAPI = {
   login: async (email: string, password: string) => {
     const response = await apiClient.post<any>(API_ENDPOINTS.AUTH.LOGIN, { email, password });
+    if (response.access_token && response.refresh_token) {
+      tokenManager.setTokens(response.access_token, response.refresh_token);
+    }
+    return response;
+  },
+
+  googleLogin: async (credential: string, role: string = 'student') => {
+    const response = await apiClient.post<any>(API_ENDPOINTS.AUTH.GOOGLE_LOGIN, { credential, role });
     if (response.access_token && response.refresh_token) {
       tokenManager.setTokens(response.access_token, response.refresh_token);
     }

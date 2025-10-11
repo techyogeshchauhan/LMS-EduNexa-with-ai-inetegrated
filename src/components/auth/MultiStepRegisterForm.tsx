@@ -199,11 +199,6 @@ export const MultiStepRegisterForm: React.FC<MultiStepRegisterFormProps> = ({ on
           employeeId,
           department,
           designation
-        }),
-        ...(role === 'super_admin' && {
-          employeeId: employeeId || 'SUPER001',
-          department: department || 'System Administration',
-          designation: designation || 'Super Administrator'
         })
       };
       
@@ -230,8 +225,7 @@ export const MultiStepRegisterForm: React.FC<MultiStepRegisterFormProps> = ({ on
             <div className="space-y-4">
               {[
                 { value: 'student', title: 'Student', description: 'Access courses, assignments, and learning materials', icon: GraduationCap },
-                { value: 'teacher', title: 'Teacher', description: 'Create courses, manage students, and track progress', icon: User },
-                { value: 'super_admin', title: 'Super Administrator', description: 'Full system access and management capabilities', icon: Building }
+                { value: 'teacher', title: 'Teacher', description: 'Create courses, manage students, and track progress', icon: User }
               ].map(({ value, title, description, icon: Icon }) => (
                 <label
                   key={value}

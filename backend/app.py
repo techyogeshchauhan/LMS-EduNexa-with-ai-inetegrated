@@ -18,6 +18,8 @@ from routes.ai import ai_bp
 from routes.analytics import analytics_bp
 from routes.learner_analytics import learner_analytics_bp
 from routes.notifications import notifications_bp
+from routes.videos import videos_bp
+from routes.progress import progress_bp
 
 # Load environment variables
 load_dotenv()
@@ -40,6 +42,8 @@ app.config['SERVER_START_TIME'] = SERVER_START_TIME.isoformat()
 allowed_origins = [
     "http://localhost:5173",
     "http://localhost:3000",
+    "http://127.0.0.1:5173",
+    "http://127.0.0.1:3000",
 ]
 
 # Add production frontend URL if provided
@@ -47,7 +51,13 @@ frontend_url = os.getenv('FRONTEND_URL')
 if frontend_url:
     allowed_origins.append(frontend_url)
 
-CORS(app, origins=allowed_origins, supports_credentials=True)
+# Enhanced CORS configuration
+CORS(app, 
+     origins=allowed_origins, 
+     supports_credentials=True,
+     allow_headers=['Content-Type', 'Authorization', 'X-Requested-With'],
+     methods=['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+     expose_headers=['Content-Type', 'Authorization'])
 jwt = JWTManager(app)
 
 # Token blacklist set (in production, use Redis or database)
@@ -79,6 +89,19 @@ app.register_blueprint(ai_bp, url_prefix='/api/ai')
 app.register_blueprint(analytics_bp, url_prefix='/api/analytics')
 app.register_blueprint(learner_analytics_bp, url_prefix='/api/learner-analytics')
 app.register_blueprint(notifications_bp, url_prefix='/api')
+app.register_blueprint(videos_bp, url_prefix='/api/videos')
+app.register_blueprint(progress_bp, url_prefix='/api/progress')
+
+# Handle OPTIONS requests for CORS preflight
+@app.before_request
+def handle_preflight():
+    if request.method == "OPTIONS":
+        response = app.make_default_options_response()
+        response.headers['Access-Control-Allow-Origin'] = request.headers.get('Origin', '*')
+        response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS'
+        response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, X-Requested-With'
+        response.headers['Access-Control-Allow-Credentials'] = 'true'
+        return response
 
 # Health check endpoint
 @app.route('/api/health', methods=['GET'])

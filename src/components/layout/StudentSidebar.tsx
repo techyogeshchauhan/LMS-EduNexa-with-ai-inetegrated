@@ -31,6 +31,17 @@ export const StudentSidebar: React.FC = () => {
   const [unreadNotifications, setUnreadNotifications] = useState(0);
   const [unreadMessages, setUnreadMessages] = useState(0);
   const [pendingAssignments, setPendingAssignments] = useState(0);
+  const [isMobile, setIsMobile] = useState(false);
+
+  // Detect mobile screen
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 1024);
+    };
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
 
   // Fetch unread counts
   useEffect(() => {
@@ -71,19 +82,31 @@ export const StudentSidebar: React.FC = () => {
   ];
 
   return (
-    <div className={`fixed inset-y-0 left-0 z-50 bg-white shadow-lg transition-all duration-300 ${
-      sidebarOpen ? 'w-64' : 'w-16'
-    }`}>
-      <div className="flex flex-col h-full">
+    <>
+      {/* Mobile Overlay */}
+      {isMobile && sidebarOpen && (
+        <div 
+          className="fixed inset-0 bg-black bg-opacity-50 z-40 lg:hidden"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+      
+      {/* Sidebar */}
+      <div className={`fixed inset-y-0 left-0 z-50 bg-white shadow-lg transition-all duration-300 ${
+        isMobile 
+          ? sidebarOpen ? 'translate-x-0 w-64' : '-translate-x-full w-64'
+          : sidebarOpen ? 'w-64' : 'w-16'
+      }`}>
+        <div className="flex flex-col h-full">
         {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-gray-200">
-          {sidebarOpen && (
+        <div className="flex items-center justify-between p-3 sm:p-4 border-b border-gray-200">
+          {(sidebarOpen || isMobile) && (
             <div className="flex items-center gap-2">
-              <div className="bg-gradient-to-r from-blue-600 to-purple-600 p-2 rounded-lg">
-                <Brain className="h-6 w-6 text-white" />
+              <div className="bg-gradient-to-r from-blue-600 to-purple-600 p-1.5 sm:p-2 rounded-lg">
+                <Brain className="h-5 w-5 sm:h-6 sm:w-6 text-white" />
               </div>
               <div>
-                <h1 className="text-lg font-bold text-gray-900">EduNexa</h1>
+                <h1 className="text-base sm:text-lg font-bold text-gray-900">EduNexa</h1>
                 <p className="text-xs text-gray-500">Student Portal</p>
               </div>
             </div>
@@ -101,20 +124,21 @@ export const StudentSidebar: React.FC = () => {
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 px-4 py-6 space-y-2">
+        <nav className="flex-1 px-2 sm:px-4 py-4 sm:py-6 space-y-1 sm:space-y-2 overflow-y-auto">
           {navigationItems.map((item, index) => (
             <a
               key={index}
               href={item.href}
-              className="flex items-center gap-3 px-3 py-3 text-gray-700 rounded-lg hover:bg-blue-50 hover:text-blue-600 transition-all duration-200 group"
+              onClick={() => isMobile && setSidebarOpen(false)}
+              className="flex items-center gap-3 px-2 sm:px-3 py-2.5 sm:py-3 text-sm sm:text-base text-gray-700 rounded-lg hover:bg-blue-50 hover:text-blue-600 transition-all duration-200 group"
             >
               <item.icon className="h-5 w-5 flex-shrink-0" />
-              {sidebarOpen && (
+              {(sidebarOpen || isMobile) && (
                 <>
                   <span className="font-medium">{item.label}</span>
                   {item.badge && (
-                    <span className="ml-auto bg-red-500 text-white text-xs px-2 py-1 rounded-full">
-                      {item.badge}
+                    <span className="ml-auto bg-red-500 text-white text-xs px-2 py-0.5 sm:py-1 rounded-full min-w-[20px] text-center">
+                      {item.badge > 9 ? '9+' : item.badge}
                     </span>
                   )}
                 </>
@@ -124,11 +148,11 @@ export const StudentSidebar: React.FC = () => {
         </nav>
 
         {/* User Info */}
-        {sidebarOpen && (
-          <div className="p-4 border-t border-gray-200">
+        {(sidebarOpen || isMobile) && (
+          <div className="p-3 sm:p-4 border-t border-gray-200">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-gradient-to-r from-blue-600 to-purple-600 rounded-full flex items-center justify-center">
-                <span className="text-white font-medium">
+              <div className="w-9 h-9 sm:w-10 sm:h-10 bg-gradient-to-r from-blue-600 to-purple-600 rounded-full flex items-center justify-center flex-shrink-0">
+                <span className="text-white text-sm sm:text-base font-medium">
                   {user?.name.charAt(0).toUpperCase()}
                 </span>
               </div>
@@ -141,5 +165,6 @@ export const StudentSidebar: React.FC = () => {
         )}
       </div>
     </div>
+    </>
   );
 };

@@ -20,6 +20,7 @@ interface AuthContextType {
   isAuthenticated: boolean;
   isLoading: boolean;
   login: (email: string, password: string) => Promise<void>;
+  googleLogin: (credential: string, role?: string) => Promise<void>;
   register: (userData: any) => Promise<void>;
   logout: () => Promise<void>;
   logoutAll: () => Promise<void>;
@@ -103,6 +104,17 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       setUser(response.user);
     } catch (error) {
       console.error('Login failed:', error);
+      throw error;
+    }
+  };
+
+  // Google Login function
+  const googleLogin = async (credential: string, role: string = 'student') => {
+    try {
+      const response = await authAPI.googleLogin(credential, role);
+      setUser(response.user);
+    } catch (error) {
+      console.error('Google login failed:', error);
       throw error;
     }
   };
@@ -196,6 +208,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     isAuthenticated,
     isLoading,
     login,
+    googleLogin,
     register,
     logout,
     logoutAll,

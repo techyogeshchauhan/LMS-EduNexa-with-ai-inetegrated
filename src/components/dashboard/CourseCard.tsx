@@ -19,9 +19,11 @@ interface Course {
 interface CourseCardProps {
   course: Course;
   onClick?: () => void;
+  viewMode?: 'grid' | 'list';
+  isTeacher?: boolean;
 }
 
-export const CourseCard: React.FC<CourseCardProps> = ({ course, onClick }) => {
+export const CourseCard: React.FC<CourseCardProps> = ({ course, onClick, viewMode = 'grid', isTeacher = false }) => {
   const getDifficultyColor = (difficulty: string) => {
     switch (difficulty) {
       case 'Beginner': return 'bg-green-100 text-green-800';

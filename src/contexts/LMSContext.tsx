@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState } from 'react';
 
 interface Course {
+  createdAt: number;
   duration: ReactNode;
   id: string;
   title: string;
@@ -57,108 +58,70 @@ export const useLMS = () => {
 export const LMSProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [selectedCourse, setSelectedCourse] = useState<Course | null>(null);
+  const [courses, setCourses] = useState<Course[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  // Mock data
-  const courses: Course[] = [
-    {
-      id: '1',
-      title: 'Introduction to Machine Learning',
-      description: 'Learn the fundamentals of machine learning with hands-on projects',
-      instructor: 'Dr. Sarah Johnson',
-      progress: 75,
-      totalLessons: 12,
-      completedLessons: 9,
-      thumbnail: 'https://images.pexels.com/photos/8386440/pexels-photo-8386440.jpeg?auto=compress&cs=tinysrgb&w=400',
-      category: 'AI & Machine Learning',
-      difficulty: 'Intermediate',
-      rating: 4.8,
-      students: 1240
-    },
-    {
-      id: '2',
-      title: 'Advanced Python Programming',
-      description: 'Master advanced Python concepts and best practices',
-      instructor: 'Prof. Michael Chen',
-      progress: 45,
-      totalLessons: 15,
-      completedLessons: 7,
-      thumbnail: 'https://images.pexels.com/photos/1181677/pexels-photo-1181677.jpeg?auto=compress&cs=tinysrgb&w=400',
-      category: 'Programming',
-      difficulty: 'Advanced',
-      rating: 4.9,
-      students: 892
-    },
-    {
-      id: '3',
-      title: 'Data Science Fundamentals',
-      description: 'Explore data analysis, visualization, and statistical modeling',
-      instructor: 'Dr. Emily Rodriguez',
-      progress: 90,
-      totalLessons: 10,
-      completedLessons: 9,
-      thumbnail: 'https://images.pexels.com/photos/8386434/pexels-photo-8386434.jpeg?auto=compress&cs=tinysrgb&w=400',
-      category: 'Data Science',
-      difficulty: 'Beginner',
-      rating: 4.7,
-      students: 1580
-    }
-  ];
+  // Fetch real courses from backend
+  React.useEffect(() => {
+    fetchCourses();
+  }, []);
 
-  const assignments: Assignment[] = [
-    {
-      id: '1',
-      title: 'Linear Regression Project',
-      courseId: '1',
-      dueDate: '2024-02-15',
-      status: 'pending',
-      description: 'Implement a linear regression model using Python and scikit-learn'
-    },
-    {
-      id: '2',
-      title: 'Python Code Review',
-      courseId: '2',
-      dueDate: '2024-02-12',
-      status: 'submitted',
-      description: 'Review and optimize the provided Python code for performance'
-    },
-    {
-      id: '3',
-      title: 'Data Visualization Dashboard',
-      courseId: '3',
-      dueDate: '2024-02-18',
-      status: 'graded',
-      grade: 95,
-      description: 'Create an interactive dashboard using matplotlib and plotly'
-    }
-  ];
+  const fetchCourses = async () => {
+    try {
+      const token = localStorage.getItem('access_token') || localStorage.getItem('token');
+      if (!token) {
+        setLoading(false);
+        return;
+      }
 
-  const announcements: Announcement[] = [
-    {
-      id: '1',
-      title: 'New AI Study Groups Available',
-      content: 'Join our weekly AI study groups every Wednesday at 7 PM EST',
-      date: '2024-02-01',
-      type: 'info'
-    },
-    {
-      id: '2',
-      title: 'Assignment Extension',
-      content: 'The Linear Regression project deadline has been extended to February 20th',
-      date: '2024-02-03',
-      type: 'warning'
-    },
-    {
-      id: '3',
-      title: 'Certificate Available',
-      content: 'Your Data Science Fundamentals certificate is ready for download!',
-      date: '2024-02-05',
-      type: 'success'
+      const response = await fetch('http://localhost:5000/api/courses', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        // Transform backend data to match frontend format
+        const transformedCourses = data.courses?.map((course: any) => ({
+          id: course._id || course.id,
+          title: course.title,
+          description: course.description,
+          instructor: course.instructor || 'Instructor',
+          progress: course.progress || 0,
+          totalLessons: course.total_lessons || course.modules?.length || 0,
+          completedLessons: course.completed_lessons || 0,
+          thumbnail: course.thumbnail || 'https://images.pexels.com/photos/1181677/pexels-photo-1181677.jpeg?auto=compress&cs=tinysrgb&w=400',
+          category: course.category,
+          difficulty: course.difficulty || 'Beginner',
+          rating: course.rating || 4.5,
+          students: course.students || 0,
+          createdAt: course.created_at,
+          duration: course.duration
+        })) || [];
+        setCourses(transformedCourses);
+      }
+    } catch (error) {
+      console.error('Failed to fetch courses:', error);
+    } finally {
+      setLoading(false);
     }
-  ];
+  };
+
+  // No mock data - use only real data from backend
+
+  // No mock assignments - fetch from backend when needed
+  const assignments: Assignment[] = [];
+
+  // No mock announcements - fetch from backend when needed
+  const announcements: Announcement[] = [];
+
+  // Use only real courses from backend
+  const displayCourses = courses;
 
   return (
     <LMSContext.Provider value={{
-      courses,
+      courses: displayCourses,
       assignments,
       announcements,
       sidebarOpen,

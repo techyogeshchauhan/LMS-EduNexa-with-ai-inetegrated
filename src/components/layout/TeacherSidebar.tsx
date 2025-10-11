@@ -17,7 +17,8 @@ import {
   User,
   GraduationCap,
   ClipboardList,
-  PlusCircle
+  PlusCircle,
+  Video
 } from 'lucide-react';
 
 interface SidebarItem {
@@ -35,6 +36,7 @@ export const TeacherSidebar: React.FC = () => {
     { icon: Home, label: 'Dashboard', href: '/dashboard' },
     { icon: BookOpen, label: 'My Courses', href: '/courses' },
     { icon: PlusCircle, label: 'Create Course', href: '/courses/create' },
+    { icon: Video, label: 'Video Management', href: '/videos' },
     { icon: Assignment, label: 'Assignments', href: '/assignments', badge: 8 },
     { icon: ClipboardList, label: 'Grading', href: '/grading', badge: 12 },
     { icon: Users, label: 'My Students', href: '/students' },

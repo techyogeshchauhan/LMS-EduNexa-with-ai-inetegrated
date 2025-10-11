@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useLMS } from '../../contexts/LMSContext';
 import { Search, Filter, Plus, FileText, Calendar, CheckCircle, Clock, Upload, Download, Eye, AlertTriangle, BookOpen, User, X } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
+import { TeacherAssignmentView } from './TeacherAssignmentView';
 
 interface Assignment {
   id: string;
@@ -30,6 +31,11 @@ export const AssignmentsPage: React.FC = () => {
   const [showSubmissionModal, setShowSubmissionModal] = useState(false);
   const [submissionText, setSubmissionText] = useState('');
   const [submissionFiles, setSubmissionFiles] = useState<File[]>([]);
+
+  // If user is teacher, show teacher view
+  if (user?.role === 'teacher') {
+    return <TeacherAssignmentView />;
+  }
 
   // Enhanced mock assignments with more details
   const assignments: Assignment[] = [

@@ -238,40 +238,40 @@ export const StudentDashboard: React.FC = () => {
   ];
 
   return (
-    <div className="p-6 space-y-8">
+    <div className="p-3 sm:p-4 md:p-6 space-y-4 sm:space-y-6 md:space-y-8">
       {/* Welcome Section */}
-      <div className="bg-gradient-to-r from-blue-600 via-purple-600 to-green-600 rounded-2xl p-8 text-white">
+      <div className="bg-gradient-to-r from-blue-600 via-purple-600 to-green-600 rounded-xl sm:rounded-2xl p-4 sm:p-6 md:p-8 text-white">
         <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold mb-2">
+          <div className="flex-1">
+            <h1 className="text-xl sm:text-2xl md:text-3xl font-bold mb-1 sm:mb-2">
               {getGreeting()}, {user?.name}! 👋
             </h1>
-            <p className="text-blue-100 text-lg mb-4">
+            <p className="text-blue-100 text-sm sm:text-base md:text-lg mb-3 sm:mb-4">
               Ready to continue your learning journey?
             </p>
-            <div className="flex items-center gap-6 text-sm">
-              <div className="flex items-center gap-2">
-                <Target className="h-4 w-4" />
+            <div className="flex flex-wrap items-center gap-3 sm:gap-4 md:gap-6 text-xs sm:text-sm">
+              <div className="flex items-center gap-1 sm:gap-2">
+                <Target className="h-3 w-3 sm:h-4 sm:w-4" />
                 <span>Daily goal: 2 hours</span>
               </div>
-              <div className="flex items-center gap-2">
-                <Calendar className="h-4 w-4" />
+              <div className="flex items-center gap-1 sm:gap-2">
+                <Calendar className="h-3 w-3 sm:h-4 sm:w-4" />
                 <span>Streak: 7 days</span>
               </div>
-              <div className="flex items-center gap-2">
-                <Award className="h-4 w-4" />
+              <div className="flex items-center gap-1 sm:gap-2">
+                <Award className="h-3 w-3 sm:h-4 sm:w-4" />
                 <span>Level: Intermediate</span>
               </div>
             </div>
           </div>
-          <div className="hidden md:block">
-            <Brain className="h-24 w-24 text-white opacity-20" />
+          <div className="hidden lg:block">
+            <Brain className="h-16 w-16 md:h-20 md:w-20 lg:h-24 lg:w-24 text-white opacity-20" />
           </div>
         </div>
       </div>
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 md:gap-6">
         {statsData.map((stat, index) => (
           <StatsCard
             key={index}
@@ -286,48 +286,48 @@ export const StudentDashboard: React.FC = () => {
       </div>
 
       {/* Main Content Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6 md:gap-8">
         {/* Enhanced Courses Section with Progress */}
         <div className="lg:col-span-2">
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="text-xl font-bold text-gray-900">My Courses</h2>
-            <a href="/courses" className="text-blue-600 hover:text-blue-700 font-medium text-sm">
+          <div className="flex items-center justify-between mb-4 sm:mb-6">
+            <h2 className="text-lg sm:text-xl font-bold text-gray-900">My Courses</h2>
+            <a href="/courses" className="text-blue-600 hover:text-blue-700 font-medium text-xs sm:text-sm">
               View all courses
             </a>
           </div>
-          <div className="space-y-4">
+          <div className="space-y-3 sm:space-y-4">
             {coursesWithProgress.slice(0, 3).map((course) => (
-              <div key={course.id} className="bg-white border border-gray-200 rounded-xl p-6 hover:shadow-md transition-shadow">
-                <div className="flex items-start justify-between mb-4">
-                  <div className="flex-1">
-                    <h3 className="text-lg font-semibold text-gray-900 mb-2">{course.title}</h3>
-                    <p className="text-gray-600 text-sm mb-3">{course.description}</p>
-                    <div className="flex items-center gap-4 text-sm text-gray-500">
+              <div key={course.id} className="bg-white border border-gray-200 rounded-lg sm:rounded-xl p-4 sm:p-6 hover:shadow-md transition-shadow">
+                <div className="flex items-start justify-between mb-3 sm:mb-4">
+                  <div className="flex-1 pr-2">
+                    <h3 className="text-base sm:text-lg font-semibold text-gray-900 mb-1 sm:mb-2">{course.title}</h3>
+                    <p className="text-gray-600 text-xs sm:text-sm mb-2 sm:mb-3 line-clamp-2">{course.description}</p>
+                    <div className="flex flex-wrap items-center gap-2 sm:gap-4 text-xs sm:text-sm text-gray-500">
                       <span className="flex items-center gap-1">
-                        <Users className="h-4 w-4" />
-                        {course.instructor}
+                        <Users className="h-3 w-3 sm:h-4 sm:w-4" />
+                        <span className="hidden sm:inline">{course.instructor}</span>
                       </span>
                       <span className="flex items-center gap-1">
-                        <BookOpen className="h-4 w-4" />
-                        {course.completedLessons}/{course.totalLessons} lessons
+                        <BookOpen className="h-3 w-3 sm:h-4 sm:w-4" />
+                        {course.completedLessons}/{course.totalLessons}
                       </span>
                       <span className="flex items-center gap-1">
-                        <Clock className="h-4 w-4" />
-                        Next: {course.nextLesson}
+                        <Clock className="h-3 w-3 sm:h-4 sm:w-4" />
+                        <span className="hidden sm:inline">Next: </span>{course.nextLesson}
                       </span>
                     </div>
                   </div>
-                  <div className="text-right">
-                    <div className="text-2xl font-bold text-blue-600 mb-1">{course.progress}%</div>
+                  <div className="text-right flex-shrink-0">
+                    <div className="text-xl sm:text-2xl font-bold text-blue-600 mb-1">{course.progress}%</div>
                     <div className="text-xs text-gray-500">Complete</div>
                   </div>
                 </div>
 
                 {/* Progress Bar */}
-                <div className="mb-4">
-                  <div className="flex items-center justify-between text-sm mb-2">
+                <div className="mb-3 sm:mb-4">
+                  <div className="flex items-center justify-between text-xs sm:text-sm mb-2">
                     <span className="text-gray-600">Progress</span>
-                    <span className="text-gray-900 font-medium">{course.completedLessons} of {course.totalLessons} completed</span>
+                    <span className="text-gray-900 font-medium hidden sm:inline">{course.completedLessons} of {course.totalLessons} completed</span>
                   </div>
                   <div className="w-full bg-gray-200 rounded-full h-2">
                     <div
@@ -340,13 +340,14 @@ export const StudentDashboard: React.FC = () => {
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <div className={`w-2 h-2 rounded-full ${course.progress > 80 ? 'bg-green-500' : course.progress > 50 ? 'bg-yellow-500' : 'bg-blue-500'}`}></div>
-                    <span className="text-sm text-gray-600">
+                    <span className="text-xs sm:text-sm text-gray-600">
                       {course.progress > 80 ? 'Almost done!' : course.progress > 50 ? 'Good progress' : 'Just started'}
                     </span>
                   </div>
-                  <button className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2">
-                    <Play className="h-4 w-4" />
-                    Continue
+                  <button className="bg-blue-600 text-white px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-1 sm:gap-2 text-xs sm:text-sm">
+                    <Play className="h-3 w-3 sm:h-4 sm:w-4" />
+                    <span className="hidden sm:inline">Continue</span>
+                    <span className="sm:hidden">Go</span>
                   </button>
                 </div>
               </div>
@@ -354,36 +355,36 @@ export const StudentDashboard: React.FC = () => {
           </div>
 
           {/* Quick Actions */}
-          <div className="mt-8">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h3>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <a href="/courses" className="bg-blue-50 hover:bg-blue-100 p-4 rounded-lg text-center transition-colors">
-                <BookOpen className="h-8 w-8 text-blue-600 mx-auto mb-2" />
-                <span className="text-sm font-medium text-blue-900">Browse Courses</span>
+          <div className="mt-6 sm:mt-8">
+            <h3 className="text-base sm:text-lg font-semibold text-gray-900 mb-3 sm:mb-4">Quick Actions</h3>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-3 md:gap-4">
+              <a href="/courses" className="bg-blue-50 hover:bg-blue-100 p-3 sm:p-4 rounded-lg text-center transition-colors">
+                <BookOpen className="h-6 w-6 sm:h-8 sm:w-8 text-blue-600 mx-auto mb-1 sm:mb-2" />
+                <span className="text-xs sm:text-sm font-medium text-blue-900 block">Browse Courses</span>
               </a>
-              <a href="/assignments" className="bg-green-50 hover:bg-green-100 p-4 rounded-lg text-center transition-colors">
-                <Trophy className="h-8 w-8 text-green-600 mx-auto mb-2" />
-                <span className="text-sm font-medium text-green-900">Assignments</span>
+              <a href="/assignments" className="bg-green-50 hover:bg-green-100 p-3 sm:p-4 rounded-lg text-center transition-colors">
+                <Trophy className="h-6 w-6 sm:h-8 sm:w-8 text-green-600 mx-auto mb-1 sm:mb-2" />
+                <span className="text-xs sm:text-sm font-medium text-green-900 block">Assignments</span>
               </a>
-              <a href="/ai-assistant" className="bg-purple-50 hover:bg-purple-100 p-4 rounded-lg text-center transition-colors">
-                <Brain className="h-8 w-8 text-purple-600 mx-auto mb-2" />
-                <span className="text-sm font-medium text-purple-900">AI Assistant</span>
+              <a href="/ai-assistant" className="bg-purple-50 hover:bg-purple-100 p-3 sm:p-4 rounded-lg text-center transition-colors">
+                <Brain className="h-6 w-6 sm:h-8 sm:w-8 text-purple-600 mx-auto mb-1 sm:mb-2" />
+                <span className="text-xs sm:text-sm font-medium text-purple-900 block">AI Assistant</span>
               </a>
-              <a href="/achievements" className="bg-yellow-50 hover:bg-yellow-100 p-4 rounded-lg text-center transition-colors">
-                <Award className="h-8 w-8 text-yellow-600 mx-auto mb-2" />
-                <span className="text-sm font-medium text-yellow-900">Achievements</span>
+              <a href="/achievements" className="bg-yellow-50 hover:bg-yellow-100 p-3 sm:p-4 rounded-lg text-center transition-colors">
+                <Award className="h-6 w-6 sm:h-8 sm:w-8 text-yellow-600 mx-auto mb-1 sm:mb-2" />
+                <span className="text-xs sm:text-sm font-medium text-yellow-900 block">Achievements</span>
               </a>
             </div>
           </div>
         </div>
 
         {/* Right Sidebar */}
-        <div className="space-y-8">
+        <div className="space-y-4 sm:space-y-6 md:space-y-8">
           {/* Quiz Results */}
           <div>
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-gray-900">Recent Quiz Results</h3>
-              <a href="/quizzes" className="text-blue-600 hover:text-blue-700 text-sm">
+            <div className="flex items-center justify-between mb-3 sm:mb-4">
+              <h3 className="text-base sm:text-lg font-semibold text-gray-900">Recent Quiz Results</h3>
+              <a href="/quizzes" className="text-blue-600 hover:text-blue-700 text-xs sm:text-sm">
                 View all
               </a>
             </div>
@@ -414,9 +415,9 @@ export const StudentDashboard: React.FC = () => {
 
           {/* Upcoming Assignments */}
           <div>
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-gray-900">Upcoming Assignments</h3>
-              <a href="/assignments" className="text-blue-600 hover:text-blue-700 text-sm">
+            <div className="flex items-center justify-between mb-3 sm:mb-4">
+              <h3 className="text-base sm:text-lg font-semibold text-gray-900">Upcoming Assignments</h3>
+              <a href="/assignments" className="text-blue-600 hover:text-blue-700 text-xs sm:text-sm">
                 View all
               </a>
             </div>
@@ -452,9 +453,9 @@ export const StudentDashboard: React.FC = () => {
 
           {/* Recent Achievements */}
           <div>
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-gray-900">Recent Achievements</h3>
-              <a href="/achievements" className="text-blue-600 hover:text-blue-700 text-sm">
+            <div className="flex items-center justify-between mb-3 sm:mb-4">
+              <h3 className="text-base sm:text-lg font-semibold text-gray-900">Recent Achievements</h3>
+              <a href="/achievements" className="text-blue-600 hover:text-blue-700 text-xs sm:text-sm">
                 View all
               </a>
             </div>
@@ -486,9 +487,9 @@ export const StudentDashboard: React.FC = () => {
 
           {/* Announcements */}
           <div>
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-gray-900">Announcements</h3>
-              <a href="/announcements" className="text-blue-600 hover:text-blue-700 text-sm">
+            <div className="flex items-center justify-between mb-3 sm:mb-4">
+              <h3 className="text-base sm:text-lg font-semibold text-gray-900">Announcements</h3>
+              <a href="/announcements" className="text-blue-600 hover:text-blue-700 text-xs sm:text-sm">
                 View all
               </a>
             </div>
@@ -502,17 +503,17 @@ export const StudentDashboard: React.FC = () => {
       </div>
 
       {/* Personalized Learning Path */}
-      <div className="bg-gradient-to-r from-purple-50 to-blue-50 rounded-xl p-6 border border-purple-200">
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-3">
-            <Brain className="h-6 w-6 text-purple-600" />
-            <h3 className="text-lg font-semibold text-gray-900">Your Personalized Learning Path</h3>
+      <div className="bg-gradient-to-r from-purple-50 to-blue-50 rounded-lg sm:rounded-xl p-4 sm:p-6 border border-purple-200">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 mb-4">
+          <div className="flex items-center gap-2 sm:gap-3">
+            <Brain className="h-5 w-5 sm:h-6 sm:w-6 text-purple-600 flex-shrink-0" />
+            <h3 className="text-base sm:text-lg font-semibold text-gray-900 italic">Your Personalized Learning Path</h3>
           </div>
-          <div className="flex gap-2">
+          <div className="flex gap-2 flex-wrap">
             <button
               onClick={() => fetchRecommendations()}
               disabled={loadingRecommendations}
-              className="text-blue-600 hover:text-blue-700 text-sm font-medium disabled:opacity-50"
+              className="text-blue-600 hover:text-blue-700 text-xs sm:text-sm font-medium disabled:opacity-50 whitespace-nowrap"
             >
               {loadingRecommendations ? '🔄 Loading...' : '🔄 Refresh Tips'}
             </button>
@@ -523,7 +524,7 @@ export const StudentDashboard: React.FC = () => {
                 generateNewLearningPath(learningGoal);
               }}
               disabled={loadingLearningPath}
-              className="text-purple-600 hover:text-purple-700 text-sm font-medium disabled:opacity-50"
+              className="text-purple-600 hover:text-purple-700 text-xs sm:text-sm font-medium disabled:opacity-50 whitespace-nowrap"
             >
               {loadingLearningPath ? '🔄 Generating...' : '🔄 New Path'}
             </button>
@@ -573,30 +574,30 @@ export const StudentDashboard: React.FC = () => {
           </div>
         )}
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4">
           {recommendations ? (
             <>
               {recommendations.course_recommendations && recommendations.course_recommendations.length > 0 ? (
                 recommendations.course_recommendations.slice(0, 3).map((course: any, index: number) => (
-                  <div key={index} className="bg-white rounded-lg p-4 border border-gray-200 hover:shadow-md transition-shadow">
-                    <h4 className="font-medium text-gray-900 mb-2">📚 Recommended Course</h4>
-                    <p className="text-sm text-gray-600 mb-2 font-medium">{course.title}</p>
-                    <p className="text-xs text-gray-500 mb-3">{course.description?.substring(0, 80)}...</p>
+                  <div key={index} className="bg-white rounded-lg p-3 sm:p-4 border border-gray-200 hover:shadow-md transition-shadow">
+                    <h4 className="font-medium text-gray-900 mb-2 text-sm sm:text-base">📚 Recommended Course</h4>
+                    <p className="text-xs sm:text-sm text-gray-600 mb-2 font-medium line-clamp-2">{course.title}</p>
+                    <p className="text-xs text-gray-500 mb-3 line-clamp-2">{course.description?.substring(0, 80)}...</p>
                     <button 
                       onClick={() => window.location.href = '/courses'}
-                      className="text-blue-600 text-sm font-medium hover:text-blue-700 flex items-center gap-1"
+                      className="text-blue-600 text-xs sm:text-sm font-medium hover:text-blue-700 flex items-center gap-1"
                     >
                       View Course →
                     </button>
                   </div>
                 ))
               ) : (
-                <div className="bg-white rounded-lg p-4 border border-gray-200">
-                  <h4 className="font-medium text-gray-900 mb-2">🎯 Current Focus</h4>
-                  <p className="text-sm text-gray-600 mb-3">Complete your enrolled courses and improve your performance</p>
+                <div className="bg-white rounded-lg p-3 sm:p-4 border border-gray-200">
+                  <h4 className="font-medium text-gray-900 mb-2 text-sm sm:text-base">🎯 Current Focus</h4>
+                  <p className="text-xs sm:text-sm text-gray-600 mb-3">Complete your enrolled courses and improve your performance</p>
                   <button 
                     onClick={() => window.location.href = '/courses'}
-                    className="text-purple-600 text-sm font-medium hover:text-purple-700"
+                    className="text-purple-600 text-xs sm:text-sm font-medium hover:text-purple-700"
                   >
                     Continue Learning →
                   </button>
@@ -605,8 +606,8 @@ export const StudentDashboard: React.FC = () => {
               
               {/* Performance Summary Card */}
               {recommendations.performance_summary && (
-                <div className="bg-white rounded-lg p-4 border border-gray-200">
-                  <h4 className="font-medium text-gray-900 mb-2">📊 Your Progress</h4>
+                <div className="bg-white rounded-lg p-3 sm:p-4 border border-gray-200">
+                  <h4 className="font-medium text-gray-900 mb-2 text-sm sm:text-base">📊 Your Progress</h4>
                   <div className="space-y-2 text-sm">
                     <div className="flex justify-between">
                       <span className="text-gray-600">Courses:</span>
@@ -626,11 +627,11 @@ export const StudentDashboard: React.FC = () => {
               
               {/* Strong Areas Card */}
               {recommendations.performance_summary?.strong_areas?.length > 0 && (
-                <div className="bg-white rounded-lg p-4 border border-gray-200">
-                  <h4 className="font-medium text-gray-900 mb-2">💪 Strong Areas</h4>
+                <div className="bg-white rounded-lg p-3 sm:p-4 border border-gray-200">
+                  <h4 className="font-medium text-gray-900 mb-2 text-sm sm:text-base">💪 Strong Areas</h4>
                   <div className="space-y-1">
                     {recommendations.performance_summary.strong_areas.slice(0, 3).map((area: string, index: number) => (
-                      <div key={index} className="text-sm text-green-700 bg-green-50 px-2 py-1 rounded">
+                      <div key={index} className="text-xs sm:text-sm text-green-700 bg-green-50 px-2 py-1 rounded">
                         ✓ {area}
                       </div>
                     ))}
@@ -640,7 +641,7 @@ export const StudentDashboard: React.FC = () => {
             </>
           ) : (
             Array.from({ length: 3 }).map((_, index) => (
-              <div key={index} className="bg-white rounded-lg p-4 border border-gray-200">
+              <div key={index} className="bg-white rounded-lg p-3 sm:p-4 border border-gray-200">
                 <div className="animate-pulse">
                   <div className="h-4 bg-gray-200 rounded w-3/4 mb-2"></div>
                   <div className="h-3 bg-gray-200 rounded w-full mb-3"></div>
@@ -653,14 +654,14 @@ export const StudentDashboard: React.FC = () => {
 
         {/* Study Tips Section */}
         {recommendations?.study_tips && recommendations.study_tips.length > 0 && (
-          <div className="mt-4 bg-white rounded-lg p-4 border border-gray-200">
-            <h4 className="font-medium text-gray-900 mb-3 flex items-center gap-2">
+          <div className="mt-3 sm:mt-4 bg-white rounded-lg p-3 sm:p-4 border border-gray-200">
+            <h4 className="font-medium text-gray-900 mb-2 sm:mb-3 flex items-center gap-2 text-sm sm:text-base">
               <Lightbulb className="h-4 w-4 text-yellow-500" />
               💡 Personalized Study Tips
             </h4>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2 sm:gap-3">
               {recommendations.study_tips.slice(0, 4).map((tip: string, index: number) => (
-                <div key={index} className="flex items-start gap-2 text-sm text-gray-600 bg-yellow-50 p-3 rounded-lg">
+                <div key={index} className="flex items-start gap-2 text-xs sm:text-sm text-gray-600 bg-yellow-50 p-2 sm:p-3 rounded-lg">
                   <span className="text-yellow-500 mt-0.5 font-bold">•</span>
                   <span>{tip}</span>
                 </div>
@@ -671,14 +672,14 @@ export const StudentDashboard: React.FC = () => {
 
         {/* Areas for Improvement */}
         {recommendations?.performance_summary?.weak_areas?.length > 0 && (
-          <div className="mt-4 bg-white rounded-lg p-4 border border-gray-200">
-            <h4 className="font-medium text-gray-900 mb-3 flex items-center gap-2">
+          <div className="mt-3 sm:mt-4 bg-white rounded-lg p-3 sm:p-4 border border-gray-200">
+            <h4 className="font-medium text-gray-900 mb-2 sm:mb-3 flex items-center gap-2 text-sm sm:text-base">
               <Target className="h-4 w-4 text-orange-500" />
               🎯 Areas for Improvement
             </h4>
             <div className="space-y-2">
               {recommendations.performance_summary.weak_areas.map((area: string, index: number) => (
-                <div key={index} className="flex items-center gap-2 text-sm text-orange-700 bg-orange-50 px-3 py-2 rounded-lg">
+                <div key={index} className="flex items-center gap-2 text-xs sm:text-sm text-orange-700 bg-orange-50 px-2 sm:px-3 py-2 rounded-lg">
                   <span className="text-orange-500">⚠️</span>
                   <span>Focus more on: <strong>{area}</strong></span>
                 </div>
@@ -690,11 +691,11 @@ export const StudentDashboard: React.FC = () => {
 
       {/* AI Chatbot Widget */}
       {chatOpen && (
-        <div className="fixed bottom-4 right-4 w-80 h-96 bg-white rounded-lg shadow-2xl border border-gray-200 flex flex-col z-50">
-          <div className="bg-gradient-to-r from-blue-600 to-purple-600 text-white p-4 rounded-t-lg flex items-center justify-between">
+        <div className="fixed bottom-2 right-2 sm:bottom-4 sm:right-4 w-[calc(100vw-1rem)] sm:w-80 h-[70vh] sm:h-96 bg-white rounded-lg shadow-2xl border border-gray-200 flex flex-col z-50">
+          <div className="bg-gradient-to-r from-blue-600 to-purple-600 text-white p-3 sm:p-4 rounded-t-lg flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <Brain className="h-5 w-5" />
-              <span className="font-medium">AI Study Assistant</span>
+              <Brain className="h-4 w-4 sm:h-5 sm:w-5" />
+              <span className="font-medium text-sm sm:text-base">AI Study Assistant</span>
             </div>
             <button onClick={() => setChatOpen(false)} className="text-white hover:text-gray-200">
               <X className="h-5 w-5" />

@@ -9,6 +9,7 @@ from datetime import datetime, timedelta
 import re
 import secrets
 import hashlib
+import os
 
 auth_bp = Blueprint('auth', __name__)
 
@@ -49,10 +50,10 @@ def register():
         if not validate_password(data['password']):
             return jsonify({'error': 'Password must be at least 8 characters with uppercase, lowercase, digit, and special character'}), 400
         
-        # Validate role
-        valid_roles = ['student', 'teacher', 'super_admin']
+        # Validate role - super_admin cannot be registered, only login
+        valid_roles = ['student', 'teacher']
         if data['role'] not in valid_roles:
-            return jsonify({'error': 'Invalid role'}), 400
+            return jsonify({'error': 'Invalid role. Only student and teacher roles are allowed for registration'}), 400
         
         # Check if user already exists
         db = current_app.db
@@ -118,14 +119,7 @@ def register():
                 'specializations': data.get('specializations', [])
             })
         
-        elif data['role'] == 'super_admin':
-            # Super Admin-specific fields
-            user_data.update({
-                'employee_id': data.get('employeeId', ''),
-                'department': data.get('department', 'System Administration'),
-                'designation': data.get('designation', 'Super Administrator'),
-                'permissions': ['all']  # Super admin has all permissions
-            })
+
         
         # Insert user into database
         result = db.users.insert_one(user_data)
@@ -697,3 +691,149 @@ def get_token_stats():
         
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+# Google OAuth Routes
+@auth_bp.route('/google/login', methods=['POST'])
+def google_login():
+    """Handle Google OAuth login"""
+    try:
+        data = request.get_json()
+        
+        # Get Google ID token from request
+        if not data.get('credential'):
+            return jsonify({'error': 'Google credential is required'}), 400
+        
+        # Verify the Google ID token
+        try:
+            from google.oauth2 import id_token
+            from google.auth.transport import requests as google_requests
+            
+            # Verify the token
+            idinfo = id_token.verify_oauth2_token(
+                data['credential'],
+                google_requests.Request(),
+                os.getenv('GOOGLE_CLIENT_ID')
+            )
+            
+            # Get user info from Google
+            email = idinfo.get('email')
+            name = idinfo.get('name')
+            picture = idinfo.get('picture')
+            google_id = idinfo.get('sub')
+            
+            if not email:
+                return jsonify({'error': 'Email not provided by Google'}), 400
+            
+        except ValueError as e:
+            return jsonify({'error': f'Invalid Google token: {str(e)}'}), 401
+        
+        db = current_app.db
+        
+        # Check if user exists
+        user = db.users.find_one({'email': email.lower()})
+        
+        if user:
+            # User exists - login
+            if not user.get('is_active', True):
+                return jsonify({'error': 'Account is deactivated'}), 401
+            
+            # Update Google ID and profile picture if not set
+            update_data = {'last_login': datetime.utcnow()}
+            if not user.get('google_id'):
+                update_data['google_id'] = google_id
+            if not user.get('profile_pic') and picture:
+                update_data['profile_pic'] = picture
+            
+            db.users.update_one(
+                {'_id': user['_id']},
+                {'$set': update_data}
+            )
+            
+            user_id = str(user['_id'])
+        else:
+            # New user - register with default role (student)
+            # Get role from request or default to student
+            role = data.get('role', 'student')
+            
+            # Only allow student or teacher roles for Google OAuth registration
+            if role not in ['student', 'teacher']:
+                role = 'student'  # Default to student for Google signup
+            
+            user_data = {
+                'name': name,
+                'email': email.lower(),
+                'password': generate_password_hash(secrets.token_urlsafe(32)),  # Random password
+                'role': role,
+                'phone': '',
+                'profile_pic': picture or '',
+                'google_id': google_id,
+                'auth_provider': 'google',
+                'created_at': datetime.utcnow(),
+                'updated_at': datetime.utcnow(),
+                'is_active': True
+            }
+            
+            if role == 'student':
+                user_data.update({
+                    'roll_number': f'GOOGLE_{google_id[:8]}',  # Temporary roll number
+                    'department': data.get('department', 'Not Specified'),
+                    'year': data.get('year', 'Not Specified'),
+                    'semester': '',
+                    'enrolled_courses': [],
+                    'completed_courses': [],
+                    'total_points': 0,
+                    'badges': []
+                })
+            elif role == 'teacher':
+                user_data.update({
+                    'employee_id': f'GOOGLE_{google_id[:8]}',  # Temporary employee ID
+                    'department': data.get('department', 'Not Specified'),
+                    'designation': data.get('designation', 'Instructor'),
+                    'courses_created': [],
+                    'specializations': []
+                })
+            
+            result = db.users.insert_one(user_data)
+            user_id = str(result.inserted_id)
+            user = user_data
+            user['_id'] = user_id
+        
+        # Create access and refresh tokens
+        access_token = create_access_token(identity=user_id)
+        refresh_token = create_refresh_token(identity=user_id)
+        
+        # Store refresh token
+        db.refresh_tokens.insert_one({
+            'user_id': user_id,
+            'token_hash': hashlib.sha256(refresh_token.encode()).hexdigest(),
+            'created_at': datetime.utcnow(),
+            'expires_at': datetime.utcnow() + timedelta(days=7),
+            'is_active': True
+        })
+        
+        # Prepare user response
+        user_response = {
+            '_id': user_id,
+            'name': user.get('name'),
+            'email': user.get('email'),
+            'role': user.get('role'),
+            'profile_pic': user.get('profile_pic'),
+            'department': user.get('department'),
+        }
+        
+        if user.get('role') == 'student':
+            user_response['roll_number'] = user.get('roll_number')
+            user_response['year'] = user.get('year')
+        elif user.get('role') == 'teacher':
+            user_response['employee_id'] = user.get('employee_id')
+            user_response['designation'] = user.get('designation')
+        
+        return jsonify({
+            'message': 'Google login successful',
+            'user': user_response,
+            'access_token': access_token,
+            'refresh_token': refresh_token
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': f'Google login failed: {str(e)}'}), 500
