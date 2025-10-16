@@ -26,6 +26,11 @@ export const CoursesPage: React.FC = () => {
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [sortBy, setSortBy] = useState('title');
 
+  const handleCourseClick = (courseId: string) => {
+    window.history.pushState({}, '', `/courses/${courseId}`);
+    window.dispatchEvent(new PopStateEvent('popstate'));
+  };
+
   const categories = [
     'all',
     'AI & Machine Learning',
@@ -266,7 +271,13 @@ export const CoursesPage: React.FC = () => {
       }>
         {filteredCourses.length > 0 ? (
           filteredCourses.map((course) => (
-            <CourseCard key={course.id} course={course} viewMode={viewMode} isTeacher={isTeacher} />
+            <CourseCard 
+              key={course.id} 
+              course={course} 
+              viewMode={viewMode} 
+              isTeacher={isTeacher}
+              onClick={() => handleCourseClick(course.id)}
+            />
           ))
         ) : (
           <div className="col-span-full text-center py-12 bg-white rounded-xl border border-gray-200">

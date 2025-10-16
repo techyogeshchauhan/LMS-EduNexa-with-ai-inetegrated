@@ -24,8 +24,10 @@ import {
   X
 } from 'lucide-react';
 import { VideoPlayer } from './VideoPlayer';
+import { CourseVideosView } from './CourseVideosView';
 import { getAuthToken } from '../../utils/tokenHelper';
 import { Toast } from '../common/Toast';
+import { useAuth } from '../../contexts/AuthContext';
 
 interface CourseModule {
   id: string;
@@ -60,6 +62,7 @@ interface CourseDetailPageProps {
 }
 
 export const CourseDetailPage: React.FC<CourseDetailPageProps> = ({ courseId }) => {
+  const { user } = useAuth();
   const [activeTab, setActiveTab] = useState('overview');
   const [selectedModule, setSelectedModule] = useState<string | null>(null);
   const [selectedVideo, setSelectedVideo] = useState<{ id: string, title: string } | null>(null);
@@ -68,9 +71,19 @@ export const CourseDetailPage: React.FC<CourseDetailPageProps> = ({ courseId }) 
   const [submissionModal, setSubmissionModal] = useState<{ show: boolean, assignment: Assignment | null }>({ show: false, assignment: null });
   const [submissionText, setSubmissionText] = useState('');
   const [submissionFile, setSubmissionFile] = useState<File | null>(null);
+  const [showVideoStats, setShowVideoStats] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [toast, setToast] = useState<{ type: 'success' | 'error', message: string } | null>(null);
   const [courseProgress, setCourseProgress] = useState<any>(null);
+  const [videoProgress, setVideoProgress] = useState<Record<string, number>>({});
+  const [detailedProgress, setDetailedProgress] = useState({
+    materials: { completed: 0, total: 0, percentage: 0 },
+    videos: { completed: 0, total: 0, percentage: 0 },
+    assignments: { completed: 0, total: 0, percentage: 0 },
+    quizzes: { completed: 0, total: 0, percentage: 0 },
+    overall: 0
+  });
+  const [isRefreshingProgress, setIsRefreshingProgress] = useState(false);
 
   // TODO: Fetch real course data from backend
   // For now, showing placeholder until course is selected
@@ -101,6 +114,185 @@ export const CourseDetailPage: React.FC<CourseDetailPageProps> = ({ courseId }) 
   // No mock assignments - will be fetched from backend
   const assignments: Assignment[] = courseData?.assignments || [];
 
+  // Refresh progress from backend
+  const refreshProgress = async () => {
+    if (!courseId) return;
+
+    setIsRefreshingProgress(true);
+    try {
+      const token = getAuthToken();
+      if (!token) return;
+
+      const response = await fetch(`http://localhost:5000/api/progress/course/${courseId}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        const progressData = data.progress;
+        setCourseProgress(progressData);
+
+        // Recalculate detailed progress
+        if (courseData) {
+          console.log('📊 Progress data from backend:', progressData);
+          console.log('📦 Course modules:', courseData.modules);
+          console.log('📹 Video progress state:', videoProgress);
+
+          const updatedProgress = calculateDetailedProgress(
+            progressData,
+            courseData.modules || [],
+            courseData.assignments || [],
+            videoProgress  // FIXED: Pass video progress
+          );
+
+          console.log('✅ Calculated detailed progress:', updatedProgress);
+          setDetailedProgress(updatedProgress);
+
+          // Update course data with new progress
+          setCourseData((prev: any) => ({
+            ...prev,
+            progress: updatedProgress.overall,
+            completedLessons: progressData?.materials?.completed || 0
+          }));
+        }
+      }
+    } catch (error) {
+      console.error('Failed to refresh progress:', error);
+    } finally {
+      setIsRefreshingProgress(false);
+    }
+  };
+
+  // Calculate comprehensive progress
+  const calculateDetailedProgress = (progressData: any, modules: CourseModule[], assignments: Assignment[], currentVideoProgress: Record<string, number> = {}) => {
+    // Materials progress
+    const totalMaterials = progressData?.materials?.total || 0;
+    const completedMaterials = progressData?.materials?.completed || 0;
+    const materialsPercentage = totalMaterials > 0 ? (completedMaterials / totalMaterials) * 100 : 0;
+
+    // Videos progress (based on watch progress)
+    const videoModules = modules.filter(m => m.type === 'video');
+    const totalVideos = videoModules.length;
+    let completedVideos = 0;
+
+    // Count videos that are either marked complete or watched >80%
+    videoModules.forEach(video => {
+      if (video.completed) {
+        completedVideos++;
+      } else if (video.materials[0]) {
+        const videoId = video.materials[0].id;
+        const watchTime = currentVideoProgress[videoId] || 0;
+        // Assume average video is 10 minutes (600 seconds) if not specified
+        const estimatedDuration = 600;
+        const watchPercentage = (watchTime / estimatedDuration) * 100;
+        if (watchPercentage >= 80) {
+          completedVideos++;
+        }
+      }
+    });
+    const videosPercentage = totalVideos > 0 ? (completedVideos / totalVideos) * 100 : 0;
+
+    // Assignments progress
+    const totalAssignments = progressData?.assignments?.total || assignments.length || 0;
+    const submittedAssignments = progressData?.assignments?.submitted ||
+      assignments.filter(a => a.status === 'submitted' || a.status === 'graded').length || 0;
+    const assignmentsPercentage = totalAssignments > 0 ? (submittedAssignments / totalAssignments) * 100 : 0;
+
+    // Quizzes progress
+    const totalQuizzes = progressData?.quizzes?.total || 0;
+    const completedQuizzes = progressData?.quizzes?.completed || 0;
+    const quizzesPercentage = totalQuizzes > 0 ? (completedQuizzes / totalQuizzes) * 100 : 0;
+
+    // Calculate weighted overall progress
+    // Weight: Materials 30%, Videos 30%, Assignments 25%, Quizzes 15%
+    let overallProgress = 0;
+    let totalWeight = 0;
+
+    if (totalMaterials > 0) {
+      overallProgress += materialsPercentage * 0.3;
+      totalWeight += 0.3;
+    }
+    if (totalVideos > 0) {
+      overallProgress += videosPercentage * 0.3;
+      totalWeight += 0.3;
+    }
+    if (totalAssignments > 0) {
+      overallProgress += assignmentsPercentage * 0.25;
+      totalWeight += 0.25;
+    }
+    if (totalQuizzes > 0) {
+      overallProgress += quizzesPercentage * 0.15;
+      totalWeight += 0.15;
+    }
+
+    // Normalize if not all components exist
+    if (totalWeight > 0) {
+      overallProgress = overallProgress / totalWeight;
+    }
+
+    return {
+      materials: {
+        completed: completedMaterials,
+        total: totalMaterials,
+        percentage: Math.round(materialsPercentage)
+      },
+      videos: {
+        completed: completedVideos,
+        total: totalVideos,
+        percentage: Math.round(videosPercentage)
+      },
+      assignments: {
+        completed: submittedAssignments,
+        total: totalAssignments,
+        percentage: Math.round(assignmentsPercentage)
+      },
+      quizzes: {
+        completed: completedQuizzes,
+        total: totalQuizzes,
+        percentage: Math.round(quizzesPercentage)
+      },
+      overall: Math.round(overallProgress)
+    };
+  };
+
+  // Fetch video progress for all videos
+  const fetchVideoProgress = async (materialIds: string[]) => {
+    try {
+      const token = getAuthToken();
+      if (!token) return;
+
+      const progressMap: Record<string, number> = {};
+
+      // Fetch progress for each video material
+      for (const materialId of materialIds) {
+        try {
+          const response = await fetch(`http://localhost:5000/api/progress/video/${materialId}/status`, {
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json'
+            }
+          });
+
+          if (response.ok) {
+            const data = await response.json();
+            if (data.watch_time) {
+              progressMap[materialId] = data.watch_time;
+            }
+          }
+        } catch (error) {
+          console.error(`Failed to fetch progress for video ${materialId}:`, error);
+        }
+      }
+
+      setVideoProgress(progressMap);
+    } catch (error) {
+      console.error('Failed to fetch video progress:', error);
+    }
+  };
+
   useEffect(() => {
     const fetchCourseData = async () => {
       try {
@@ -121,7 +313,7 @@ export const CourseDetailPage: React.FC<CourseDetailPageProps> = ({ courseId }) 
 
           if (response.ok) {
             const data = await response.json();
-            
+
             const transformedAssignments: Assignment[] = data.assignments.map((assignment: any) => ({
               id: assignment._id,
               title: assignment.title,
@@ -170,7 +362,7 @@ export const CourseDetailPage: React.FC<CourseDetailPageProps> = ({ courseId }) 
             progressData = progress.progress;
             setCourseProgress(progressData);
           }
-          
+
           // Transform materials to modules
           const completedMaterials = progressData?.materials?.completed_ids || [];
           const transformedModules: CourseModule[] = course.materials?.map((material: any, index: number) => ({
@@ -181,10 +373,10 @@ export const CourseDetailPage: React.FC<CourseDetailPageProps> = ({ courseId }) 
             completed: completedMaterials.includes(material._id),
             type: material.type === 'video' ? 'video' : 'reading',
             materials: [{
-              id: material._id,
+              id: material.content || material._id, // Use content field which contains the video ID
               title: material.title,
               type: material.type,
-              url: material.file_path || material.url,
+              url: material.content || material.file_path || material.url,
               size: material.file_size
             }]
           })) || [];
@@ -200,7 +392,7 @@ export const CourseDetailPage: React.FC<CourseDetailPageProps> = ({ courseId }) 
             grade: assignment.submission?.grade
           })) || [];
 
-          setCourseData({
+          const courseDataObj = {
             id: course._id,
             title: course.title,
             description: course.description,
@@ -221,7 +413,29 @@ export const CourseDetailPage: React.FC<CourseDetailPageProps> = ({ courseId }) 
             prerequisites: course.prerequisites || [],
             modules: transformedModules,
             assignments: transformedAssignments
-          });
+          };
+
+          setCourseData(courseDataObj);
+
+          // Calculate initial detailed progress
+          const initialDetailedProgress = calculateDetailedProgress(progressData, transformedModules, transformedAssignments);
+          setDetailedProgress(initialDetailedProgress);
+
+          // Update course progress with calculated overall progress
+          setCourseData((prev: any) => ({
+            ...prev,
+            progress: initialDetailedProgress.overall
+          }));
+
+          // Fetch video progress for all video materials
+          const videoMaterialIds = transformedModules
+            .filter(m => m.type === 'video')
+            .map(m => m.materials[0]?.id)
+            .filter(Boolean);
+
+          if (videoMaterialIds.length > 0) {
+            await fetchVideoProgress(videoMaterialIds);
+          }
         } else {
           console.error('Failed to fetch course data');
           setCourseData({
@@ -244,6 +458,28 @@ export const CourseDetailPage: React.FC<CourseDetailPageProps> = ({ courseId }) 
 
     fetchCourseData();
   }, [courseId]);
+
+  // Recalculate progress when video progress updates
+  useEffect(() => {
+    if (courseData && courseProgress) {
+      const updatedProgress = calculateDetailedProgress(
+        courseProgress,
+        courseData.modules || [],
+        courseData.assignments || [],
+        videoProgress  // IMPORTANT: Pass video progress for accurate calculation
+      );
+      console.log('Updated progress:', updatedProgress);
+      console.log('Video progress:', videoProgress);
+      console.log('Course progress will be:', updatedProgress.overall);
+      setDetailedProgress(updatedProgress);
+
+      // Update course progress
+      setCourseData((prev: any) => ({
+        ...prev,
+        progress: updatedProgress.overall
+      }));
+    }
+  }, [videoProgress, courseData?.modules, courseData?.assignments, courseProgress]);
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('en-US', {
@@ -317,17 +553,20 @@ export const CourseDetailPage: React.FC<CourseDetailPageProps> = ({ courseId }) 
       if (response.ok) {
         // Show success message
         setToast({ type: 'success', message: 'Assignment submitted successfully!' });
-        
+
         // Update assignment status in local state
         setCourseData((prevData: any) => ({
           ...prevData,
-          assignments: prevData.assignments.map((a: Assignment) => 
-            a.id === assignment.id 
+          assignments: prevData.assignments.map((a: Assignment) =>
+            a.id === assignment.id
               ? { ...a, status: 'submitted' as const, submittedAt: new Date().toISOString() }
               : a
           )
         }));
-        
+
+        // Refresh progress from backend
+        await refreshProgress();
+
         // Reset form
         setSubmissionText('');
         setSubmissionFile(null);
@@ -364,42 +603,24 @@ export const CourseDetailPage: React.FC<CourseDetailPageProps> = ({ courseId }) 
       });
 
       if (response.ok) {
-        // Update local state
+        // Update local state immediately for UI responsiveness
         setCourseData((prevData: any) => ({
           ...prevData,
-          modules: prevData.modules?.map((module: CourseModule) => 
-            module.id === materialId 
+          modules: prevData.modules?.map((module: CourseModule) =>
+            module.id === materialId
               ? { ...module, completed: true }
               : module
           ) || []
         }));
 
-        // Update progress
-        if (courseProgress) {
-          const newCompletedCount = courseProgress.materials.completed + 1;
-          const newProgress = (newCompletedCount / courseProgress.materials.total) * 100;
-          
-          setCourseProgress({
-            ...courseProgress,
-            overall_progress: newProgress,
-            materials: {
-              ...courseProgress.materials,
-              completed: newCompletedCount,
-              completed_ids: [...courseProgress.materials.completed_ids, materialId]
-            }
-          });
-
-          setCourseData((prevData: any) => ({
-            ...prevData,
-            progress: newProgress,
-            completedLessons: newCompletedCount
-          }));
-        }
+        // Refresh progress from backend for accurate calculation
+        await refreshProgress();
 
         setToast({ type: 'success', message: 'Material marked as complete!' });
       }
     } catch (error) {
       console.error('Failed to mark material as complete:', error);
+      setToast({ type: 'error', message: 'Failed to mark material as complete' });
     }
   };
 
@@ -413,7 +634,7 @@ export const CourseDetailPage: React.FC<CourseDetailPageProps> = ({ courseId }) 
               <BookOpen className="h-4 w-4 sm:h-5 sm:w-5 text-blue-600" />
             </div>
             <div>
-              <p className="text-xs sm:text-sm text-gray-600">Progress</p>
+              <p className="text-xs sm:text-sm text-gray-600">Overall Progress</p>
               <p className="text-lg sm:text-xl font-bold text-gray-900">{course.progress}%</p>
             </div>
           </div>
@@ -425,8 +646,8 @@ export const CourseDetailPage: React.FC<CourseDetailPageProps> = ({ courseId }) 
               <CheckCircle className="h-4 w-4 sm:h-5 sm:w-5 text-green-600" />
             </div>
             <div>
-              <p className="text-xs sm:text-sm text-gray-600">Completed</p>
-              <p className="text-lg sm:text-xl font-bold text-gray-900">{course.completedLessons}/{course.totalLessons}</p>
+              <p className="text-xs sm:text-sm text-gray-600">Materials</p>
+              <p className="text-lg sm:text-xl font-bold text-gray-900">{detailedProgress.materials.completed}/{detailedProgress.materials.total}</p>
             </div>
           </div>
         </div>
@@ -434,11 +655,11 @@ export const CourseDetailPage: React.FC<CourseDetailPageProps> = ({ courseId }) 
         <div className="bg-white rounded-lg border border-gray-200 p-4 sm:p-6">
           <div className="flex items-center gap-2 sm:gap-3">
             <div className="p-1.5 sm:p-2 bg-purple-100 rounded-lg">
-              <Clock className="h-4 w-4 sm:h-5 sm:w-5 text-purple-600" />
+              <Video className="h-4 w-4 sm:h-5 sm:w-5 text-purple-600" />
             </div>
             <div>
-              <p className="text-xs sm:text-sm text-gray-600">Duration</p>
-              <p className="text-lg sm:text-xl font-bold text-gray-900">{course.duration}</p>
+              <p className="text-xs sm:text-sm text-gray-600">Videos</p>
+              <p className="text-lg sm:text-xl font-bold text-gray-900">{detailedProgress.videos.completed}/{detailedProgress.videos.total}</p>
             </div>
           </div>
         </div>
@@ -446,15 +667,112 @@ export const CourseDetailPage: React.FC<CourseDetailPageProps> = ({ courseId }) 
         <div className="bg-white rounded-lg border border-gray-200 p-4 sm:p-6">
           <div className="flex items-center gap-2 sm:gap-3">
             <div className="p-1.5 sm:p-2 bg-orange-100 rounded-lg">
-              <Award className="h-4 w-4 sm:h-5 sm:w-5 text-orange-600" />
+              <FileText className="h-4 w-4 sm:h-5 sm:w-5 text-orange-600" />
             </div>
             <div>
-              <p className="text-xs sm:text-sm text-gray-600">Level</p>
-              <p className="text-lg sm:text-xl font-bold text-gray-900">{course.level}</p>
+              <p className="text-xs sm:text-sm text-gray-600">Assignments</p>
+              <p className="text-lg sm:text-xl font-bold text-gray-900">{detailedProgress.assignments.completed}/{detailedProgress.assignments.total}</p>
             </div>
           </div>
         </div>
       </div>
+
+      {/* Detailed Progress Breakdown */}
+      {(detailedProgress.materials.total > 0 || detailedProgress.videos.total > 0 ||
+        detailedProgress.assignments.total > 0 || detailedProgress.quizzes.total > 0) && (
+          <div className={`bg-white rounded-lg border border-gray-200 p-4 sm:p-6 transition-all ${isRefreshingProgress ? 'ring-2 ring-blue-200' : ''}`}>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-base sm:text-lg font-semibold text-gray-900">Progress Breakdown</h3>
+              {isRefreshingProgress && (
+                <span className="text-xs text-blue-600 flex items-center gap-1">
+                  <div className="animate-spin rounded-full h-3 w-3 border-2 border-blue-600 border-t-transparent"></div>
+                  Updating...
+                </span>
+              )}
+            </div>
+            <div className="space-y-4">
+              {detailedProgress.materials.total > 0 && (
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <BookOpen className="h-4 w-4 text-blue-600" />
+                      <span className="text-sm font-medium text-gray-700">Materials</span>
+                    </div>
+                    <span className="text-sm text-gray-600">
+                      {detailedProgress.materials.completed}/{detailedProgress.materials.total} ({detailedProgress.materials.percentage}%)
+                    </span>
+                  </div>
+                  <div className="w-full bg-gray-200 rounded-full h-2">
+                    <div
+                      className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                      style={{ width: `${detailedProgress.materials.percentage}%` }}
+                    ></div>
+                  </div>
+                </div>
+              )}
+
+              {detailedProgress.videos.total > 0 && (
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <Video className="h-4 w-4 text-purple-600" />
+                      <span className="text-sm font-medium text-gray-700">Videos</span>
+                    </div>
+                    <span className="text-sm text-gray-600">
+                      {detailedProgress.videos.completed}/{detailedProgress.videos.total} ({detailedProgress.videos.percentage}%)
+                    </span>
+                  </div>
+                  <div className="w-full bg-gray-200 rounded-full h-2">
+                    <div
+                      className="bg-purple-600 h-2 rounded-full transition-all duration-300"
+                      style={{ width: `${detailedProgress.videos.percentage}%` }}
+                    ></div>
+                  </div>
+                </div>
+              )}
+
+              {detailedProgress.assignments.total > 0 && (
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <FileText className="h-4 w-4 text-orange-600" />
+                      <span className="text-sm font-medium text-gray-700">Assignments</span>
+                    </div>
+                    <span className="text-sm text-gray-600">
+                      {detailedProgress.assignments.completed}/{detailedProgress.assignments.total} ({detailedProgress.assignments.percentage}%)
+                    </span>
+                  </div>
+                  <div className="w-full bg-gray-200 rounded-full h-2">
+                    <div
+                      className="bg-orange-600 h-2 rounded-full transition-all duration-300"
+                      style={{ width: `${detailedProgress.assignments.percentage}%` }}
+                    ></div>
+                  </div>
+                </div>
+              )}
+
+              {detailedProgress.quizzes.total > 0 && (
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <Award className="h-4 w-4 text-green-600" />
+                      <span className="text-sm font-medium text-gray-700">Quizzes</span>
+                    </div>
+                    <span className="text-sm text-gray-600">
+                      {detailedProgress.quizzes.completed}/{detailedProgress.quizzes.total} ({detailedProgress.quizzes.percentage}%)
+                    </span>
+                  </div>
+                  <div className="w-full bg-gray-200 rounded-full h-2">
+                    <div
+                      className="bg-green-600 h-2 rounded-full transition-all duration-300"
+                      style={{ width: `${detailedProgress.quizzes.percentage}%` }}
+                    ></div>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
 
       {/* Course Description */}
       <div className="bg-white rounded-lg border border-gray-200 p-4 sm:p-6">
@@ -506,6 +824,21 @@ export const CourseDetailPage: React.FC<CourseDetailPageProps> = ({ courseId }) 
                   <h3 className="text-sm sm:text-base font-semibold text-gray-900">{module.title}</h3>
                   <p className="text-gray-600 text-xs sm:text-sm line-clamp-2">{module.description}</p>
                   <p className="text-gray-500 text-xs mt-1">{module.duration}</p>
+                  {/* Video Progress Bar */}
+                  {module.type === 'video' && module.materials[0] && videoProgress[module.materials[0].id] > 0 && (
+                    <div className="mt-2">
+                      <div className="flex items-center justify-between text-xs text-gray-500 mb-1">
+                        <span>In Progress</span>
+                        <span>{Math.floor(videoProgress[module.materials[0].id] / 60)}m watched</span>
+                      </div>
+                      <div className="w-full bg-gray-200 rounded-full h-1.5">
+                        <div
+                          className="bg-blue-600 h-1.5 rounded-full transition-all"
+                          style={{ width: '50%' }}
+                        />
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -545,29 +878,43 @@ export const CourseDetailPage: React.FC<CourseDetailPageProps> = ({ courseId }) 
                 <h4 className="font-medium text-gray-900 mb-4">Course Materials</h4>
                 <div className="space-y-3">
                   {module.materials.map((material) => (
-                    <div key={material.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
-                      <div className="flex items-center gap-3">
-                        {material.type === 'video' && <Video className="h-4 w-4 text-blue-600" />}
-                        {material.type === 'pdf' && <FileText className="h-4 w-4 text-red-600" />}
-                        {material.type === 'link' && <Link className="h-4 w-4 text-green-600" />}
-                        <div>
-                          <p className="font-medium text-gray-900">{material.title}</p>
-                          {material.size && <p className="text-sm text-gray-500">{material.size}</p>}
+                    <div key={material.id} className="bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
+                      <div className="flex items-center justify-between p-3">
+                        <div className="flex items-center gap-3 flex-1">
+                          {material.type === 'video' && <Video className="h-4 w-4 text-blue-600" />}
+                          {material.type === 'pdf' && <FileText className="h-4 w-4 text-red-600" />}
+                          {material.type === 'link' && <Link className="h-4 w-4 text-green-600" />}
+                          <div className="flex-1">
+                            <p className="font-medium text-gray-900">{material.title}</p>
+                            {material.size && <p className="text-sm text-gray-500">{material.size}</p>}
+                            {/* Video progress indicator */}
+                            {material.type === 'video' && videoProgress[material.id] > 0 && (
+                              <div className="mt-1">
+                                <div className="w-full bg-gray-200 rounded-full h-1">
+                                  <div
+                                    className="bg-blue-600 h-1 rounded-full"
+                                    style={{ width: `${Math.min(((videoProgress[material.id] / 600) * 100), 100)}%` }}
+                                    title={`Watched: ${Math.floor(videoProgress[material.id] / 60)}m ${Math.floor(videoProgress[material.id] % 60)}s`}
+                                  />
+                                </div>
+                              </div>
+                            )}
+                          </div>
                         </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        {material.type === 'video' && (
-                          <button
-                            onClick={() => setSelectedVideo({ id: material.id, title: material.title })}
-                            className="px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2 text-sm"
-                          >
-                            <Play className="h-3 w-3" />
-                            Play
+                        <div className="flex items-center gap-2">
+                          {material.type === 'video' && (
+                            <button
+                              onClick={() => setSelectedVideo({ id: material.id, title: material.title })}
+                              className="px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2 text-sm"
+                            >
+                              <Play className="h-3 w-3" />
+                              Play
+                            </button>
+                          )}
+                          <button className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-200 rounded-lg transition-colors">
+                            <Download className="h-4 w-4" />
                           </button>
-                        )}
-                        <button className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-200 rounded-lg transition-colors">
-                          <Download className="h-4 w-4" />
-                        </button>
+                        </div>
                       </div>
                     </div>
                   ))}
@@ -596,11 +943,10 @@ export const CourseDetailPage: React.FC<CourseDetailPageProps> = ({ courseId }) 
                 <h3 className="text-sm sm:text-base font-semibold text-gray-900 mb-2">{assignment.title}</h3>
                 <p className="text-xs sm:text-sm text-gray-600 mb-3 line-clamp-2">{assignment.description}</p>
                 <div className="flex flex-wrap items-center gap-3 sm:gap-4 text-xs sm:text-sm text-gray-500">
-                  <div className={`flex items-center gap-1 ${
-                    new Date(assignment.dueDate) < new Date() ? 'text-red-600' : 
-                    new Date(assignment.dueDate) < new Date(Date.now() + 24 * 60 * 60 * 1000) ? 'text-orange-600' : 
-                    'text-gray-500'
-                  }`}>
+                  <div className={`flex items-center gap-1 ${new Date(assignment.dueDate) < new Date() ? 'text-red-600' :
+                    new Date(assignment.dueDate) < new Date(Date.now() + 24 * 60 * 60 * 1000) ? 'text-orange-600' :
+                      'text-gray-500'
+                    }`}>
                     <Calendar className="h-4 w-4" />
                     <span>Due: {formatDate(assignment.dueDate)}</span>
                     {new Date(assignment.dueDate) < new Date() && (
@@ -608,12 +954,12 @@ export const CourseDetailPage: React.FC<CourseDetailPageProps> = ({ courseId }) 
                         Overdue
                       </span>
                     )}
-                    {new Date(assignment.dueDate) < new Date(Date.now() + 24 * 60 * 60 * 1000) && 
-                     new Date(assignment.dueDate) > new Date() && (
-                      <span className="text-xs bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full ml-2">
-                        Due Soon
-                      </span>
-                    )}
+                    {new Date(assignment.dueDate) < new Date(Date.now() + 24 * 60 * 60 * 1000) &&
+                      new Date(assignment.dueDate) > new Date() && (
+                        <span className="text-xs bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full ml-2">
+                          Due Soon
+                        </span>
+                      )}
                   </div>
                   <div className="flex items-center gap-1">
                     <Award className="h-4 w-4" />
@@ -655,7 +1001,7 @@ export const CourseDetailPage: React.FC<CourseDetailPageProps> = ({ courseId }) 
                 )}
                 {assignment.status === 'pending' ? (
                   new Date(assignment.dueDate) < new Date() ? (
-                    <button 
+                    <button
                       disabled
                       className="bg-gray-400 text-white px-4 py-2 rounded-lg cursor-not-allowed flex items-center gap-2"
                       title="Assignment deadline has passed"
@@ -664,7 +1010,7 @@ export const CourseDetailPage: React.FC<CourseDetailPageProps> = ({ courseId }) 
                       Overdue
                     </button>
                   ) : (
-                    <button 
+                    <button
                       onClick={() => openSubmissionModal(assignment)}
                       className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
                     >
@@ -700,6 +1046,17 @@ export const CourseDetailPage: React.FC<CourseDetailPageProps> = ({ courseId }) 
           <p className="text-sm sm:text-base text-gray-600">Loading course details...</p>
         </div>
       </div>
+    );
+  }
+
+  // Show video stats view for teachers
+  if (showVideoStats && user?.role === 'teacher' && courseId) {
+    return (
+      <CourseVideosView
+        courseId={courseId}
+        courseTitle={course.title}
+        onBack={() => setShowVideoStats(false)}
+      />
     );
   }
 
@@ -744,6 +1101,15 @@ export const CourseDetailPage: React.FC<CourseDetailPageProps> = ({ courseId }) 
               </div>
 
               <div className="flex items-center gap-2 sm:gap-3">
+                {user?.role === 'teacher' && courseId && (
+                  <button
+                    onClick={() => setShowVideoStats(!showVideoStats)}
+                    className="flex items-center gap-2 px-3 sm:px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-xs sm:text-sm"
+                  >
+                    <Video className="h-4 w-4" />
+                    <span className="hidden sm:inline">Video Stats</span>
+                  </button>
+                )}
                 <button className="p-1.5 sm:p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">
                   <Bookmark className="h-4 w-4 sm:h-5 sm:w-5" />
                 </button>
@@ -756,14 +1122,73 @@ export const CourseDetailPage: React.FC<CourseDetailPageProps> = ({ courseId }) 
             {/* Progress Bar */}
             <div className="mt-3 sm:mt-4">
               <div className="flex items-center justify-between text-xs sm:text-sm text-gray-600 mb-2">
-                <span>Course Progress</span>
-                <span>{course.progress}% Complete</span>
+                <span>Overall Course Progress</span>
+                <div className="flex items-center gap-2">
+                  {isRefreshingProgress && (
+                    <div className="animate-spin rounded-full h-3 w-3 border-2 border-blue-600 border-t-transparent"></div>
+                  )}
+                  <span className="font-semibold text-blue-600">{course.progress}% Complete</span>
+                </div>
               </div>
-              <div className="w-full bg-gray-200 rounded-full h-2">
+              <div className="w-full bg-gray-200 rounded-full h-2.5 mb-3 relative overflow-hidden">
                 <div
-                  className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                  className="bg-blue-600 h-2.5 rounded-full transition-all duration-300"
                   style={{ width: `${course.progress}%` }}
                 ></div>
+                {isRefreshingProgress && (
+                  <div className="absolute inset-0 bg-blue-100 opacity-50 animate-pulse"></div>
+                )}
+              </div>
+
+              {/* Detailed Progress Breakdown */}
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                {detailedProgress.materials.total > 0 && (
+                  <div className="flex items-center justify-between p-2 bg-gray-50 rounded">
+                    <span className="text-gray-600 flex items-center gap-1">
+                      <BookOpen className="h-3 w-3" />
+                      Materials
+                    </span>
+                    <span className="font-medium text-gray-900">
+                      {detailedProgress.materials.completed}/{detailedProgress.materials.total}
+                    </span>
+                  </div>
+                )}
+
+                {detailedProgress.videos.total > 0 && (
+                  <div className="flex items-center justify-between p-2 bg-gray-50 rounded">
+                    <span className="text-gray-600 flex items-center gap-1">
+                      <Video className="h-3 w-3" />
+                      Videos
+                    </span>
+                    <span className="font-medium text-gray-900">
+                      {detailedProgress.videos.completed}/{detailedProgress.videos.total}
+                    </span>
+                  </div>
+                )}
+
+                {detailedProgress.assignments.total > 0 && (
+                  <div className="flex items-center justify-between p-2 bg-gray-50 rounded">
+                    <span className="text-gray-600 flex items-center gap-1">
+                      <FileText className="h-3 w-3" />
+                      Assignments
+                    </span>
+                    <span className="font-medium text-gray-900">
+                      {detailedProgress.assignments.completed}/{detailedProgress.assignments.total}
+                    </span>
+                  </div>
+                )}
+
+                {detailedProgress.quizzes.total > 0 && (
+                  <div className="flex items-center justify-between p-2 bg-gray-50 rounded">
+                    <span className="text-gray-600 flex items-center gap-1">
+                      <Award className="h-3 w-3" />
+                      Quizzes
+                    </span>
+                    <span className="font-medium text-gray-900">
+                      {detailedProgress.quizzes.completed}/{detailedProgress.quizzes.total}
+                    </span>
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -808,8 +1233,33 @@ export const CourseDetailPage: React.FC<CourseDetailPageProps> = ({ courseId }) 
         <VideoPlayer
           videoId={selectedVideo.id}
           title={selectedVideo.title}
-          onClose={() => setSelectedVideo(null)}
-          onComplete={() => markMaterialComplete(selectedVideo.id)}
+          onClose={() => {
+            setSelectedVideo(null);
+            // Refresh progress when video is closed
+            refreshProgress();
+          }}
+          onComplete={async () => {
+            await markMaterialComplete(selectedVideo.id);
+            // Progress already refreshed in markMaterialComplete
+          }}
+          onProgressUpdate={(watchTime, duration) => {
+            // Update local video progress state for real-time UI updates
+            setVideoProgress(prev => ({
+              ...prev,
+              [selectedVideo.id]: watchTime
+            }));
+
+            // Check if video should be auto-completed (80% watched)
+            const percentage = (watchTime / duration) * 100;
+            if (percentage >= 80 && courseData?.modules) {
+              const module = courseData.modules.find((m: CourseModule) => m.id === selectedVideo.id);
+              if (module && !module.completed) {
+                // Auto-mark as complete
+                markMaterialComplete(selectedVideo.id);
+              }
+            }
+          }}
+          initialWatchTime={videoProgress[selectedVideo.id] || 0}
         />
       )}
 
@@ -877,7 +1327,7 @@ export const CourseDetailPage: React.FC<CourseDetailPageProps> = ({ courseId }) 
                           e.target.value = '';
                           return;
                         }
-                        
+
                         // Check file type
                         const allowedTypes = ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'text/plain', 'image/jpeg', 'image/jpg', 'image/png'];
                         if (!allowedTypes.includes(file.type)) {
@@ -885,7 +1335,7 @@ export const CourseDetailPage: React.FC<CourseDetailPageProps> = ({ courseId }) 
                           e.target.value = '';
                           return;
                         }
-                        
+
                         setSubmissionFile(file);
                       }
                     }}

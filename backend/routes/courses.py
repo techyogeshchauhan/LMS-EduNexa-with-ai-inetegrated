@@ -174,15 +174,34 @@ def create_course():
         }
         
         result = db.courses.insert_one(course_data)
+        course_id = str(result.inserted_id)
+        
+        # Process modules and create materials
+        modules = data.get('modules', [])
+        for module in modules:
+            for lesson in module.get('lessons', []):
+                if lesson.get('content') and lesson.get('title'):
+                    material_data = {
+                        'course_id': course_id,
+                        'title': lesson['title'],
+                        'description': lesson.get('description', ''),
+                        'type': lesson.get('type', 'video'),
+                        'content': lesson['content'],  # This is the video ID
+                        'order': lesson.get('order', 0),
+                        'is_required': lesson.get('is_required', False),
+                        'uploaded_by': user_id,
+                        'created_at': datetime.utcnow()
+                    }
+                    db.materials.insert_one(material_data)
         
         # Update teacher's courses_created list
         db.users.update_one(
             {'_id': ObjectId(user_id)},
-            {'$push': {'courses_created': str(result.inserted_id)}}
+            {'$push': {'courses_created': course_id}}
         )
         
-        course_data['_id'] = str(result.inserted_id)
-        course_data['course_id'] = str(result.inserted_id)
+        course_data['_id'] = course_id
+        course_data['course_id'] = course_id
         
         return jsonify({
             'message': 'Course created successfully',

@@ -7,12 +7,15 @@ interface VideoPlayerProps {
   title: string;
   onClose: () => void;
   onComplete?: () => void;
+  initialWatchTime?: number; // Resume from last position
+  onProgressUpdate?: (watchTime: number, duration: number) => void; // Callback for progress updates
 }
 
-export const VideoPlayer: React.FC<VideoPlayerProps> = ({ videoId, title, onClose, onComplete }) => {
+export const VideoPlayer: React.FC<VideoPlayerProps> = ({ videoId, title, onClose, onComplete, initialWatchTime = 0, onProgressUpdate }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [watchTime, setWatchTime] = useState(0);
   const [duration, setDuration] = useState(0);
+  const [isResumed, setIsResumed] = useState(false);
 
   useEffect(() => {
     // Prevent body scroll when modal is open
@@ -54,7 +57,7 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ videoId, title, onClos
         };
         loadVideo();
       }
-    }
+    } 
   }, [videoId]);
 
   // Track video progress
@@ -64,7 +67,7 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ videoId, title, onClos
 
     const updateProgress = async () => {
       const token = getAuthToken();
-      if (!token) return;
+      if (!token || !duration) return;
 
       try {
         await fetch(`http://localhost:5000/api/progress/video/${videoId}/watch-time`, {
@@ -78,10 +81,16 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ videoId, title, onClos
             total_duration: duration
           })
         });
+        
+        // Call the progress update callback if provided
+        if (onProgressUpdate) {
+          onProgressUpdate(watchTime, duration);
+        }
       } catch (error) {
         console.error('Failed to update watch progress:', error);
       }
     };
+
 
     const handleTimeUpdate = () => {
       setWatchTime(video.currentTime);
@@ -89,6 +98,11 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ videoId, title, onClos
 
     const handleLoadedMetadata = () => {
       setDuration(video.duration);
+      // Resume from last watched position
+      if (initialWatchTime > 0 && !isResumed && video.duration > 0) {
+        video.currentTime = Math.min(initialWatchTime, video.duration - 1);
+        setIsResumed(true);
+      }
     };
 
     const handleEnded = () => {
@@ -140,6 +154,22 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ videoId, title, onClos
               Your browser does not support the video tag.
             </video>
           </div>
+
+          {/* Progress Info */}
+          {duration > 0 && (
+            <div className="p-3 bg-gray-50 border-t border-gray-200">
+              <div className="flex items-center justify-between text-sm text-gray-600 mb-2">
+                <span>Progress: {((watchTime / duration) * 100).toFixed(1)}%</span>
+                <span>{Math.floor(watchTime / 60)}:{String(Math.floor(watchTime % 60)).padStart(2, '0')} / {Math.floor(duration / 60)}:{String(Math.floor(duration % 60)).padStart(2, '0')}</span>
+              </div>
+              <div className="w-full bg-gray-200 rounded-full h-2">
+                <div 
+                  className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                  style={{ width: `${(watchTime / duration) * 100}%` }}
+                />
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>

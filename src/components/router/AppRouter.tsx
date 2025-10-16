@@ -32,18 +32,24 @@ export const AppRouter: React.FC = () => {
   React.useEffect(() => {
     const path = window.location.pathname;
     setCurrentPath(path === '/' ? '/dashboard' : path);
-    
+
     // Listen for popstate events (back/forward navigation)
     const handlePopState = () => {
       const newPath = window.location.pathname;
       setCurrentPath(newPath === '/' ? '/dashboard' : newPath);
     };
-    
+
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
   }, []);
 
   const renderPage = () => {
+    // Handle dynamic routes
+    if (currentPath.startsWith('/courses/') && currentPath !== '/courses/create') {
+      const courseId = currentPath.split('/')[2];
+      return <CourseDetailPage courseId={courseId} />;
+    }
+
     switch (currentPath) {
       case '/dashboard':
         return <Dashboard />;
