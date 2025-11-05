@@ -8,7 +8,7 @@ interface Course {
   instructor: string;
   progress: number;
   totalLessons: number;
-  completedLessons: number;
+    dLessons: number;
   thumbnail: string;
   category: string;
   difficulty: 'Beginner' | 'Intermediate' | 'Advanced';
