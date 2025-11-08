@@ -16,7 +16,7 @@ import {
 interface Lesson {
   id: string;
   title: string;
-  type: 'video' | 'document' | 'quiz' | 'assignment';
+  type: 'video' | 'document' | 'assignment';
   content: string;
   duration: string;
   order: number;
@@ -91,8 +91,7 @@ export const CourseLearningTrack: React.FC<CourseLearningTrackProps> = ({
         return <Video className="h-5 w-5 text-purple-600" />;
       case 'document':
         return <FileText className="h-5 w-5 text-blue-600" />;
-      case 'quiz':
-        return <Award className="h-5 w-5 text-yellow-600" />;
+
       case 'assignment':
         return <FileText className="h-5 w-5 text-orange-600" />;
       default:
@@ -276,17 +275,7 @@ export const CourseLearningTrack: React.FC<CourseLearningTrackProps> = ({
                 </div>
               )}
 
-              {currentLessonData.type === 'quiz' && (
-                <div className="border-2 border-yellow-200 bg-yellow-50 rounded-lg p-8 text-center">
-                  <Award className="h-16 w-16 text-yellow-600 mx-auto mb-4" />
-                  <h3 className="text-lg font-medium text-gray-900 mb-2">Quiz Time!</h3>
-                  <p className="text-gray-600 mb-4">Test your knowledge with this quiz</p>
-                  <button className="inline-flex items-center gap-2 px-6 py-3 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 transition-colors">
-                    <PlayCircle className="h-4 w-4" />
-                    Start Quiz
-                  </button>
-                </div>
-              )}
+
 
               {currentLessonData.type === 'assignment' && (
                 <div className="border-2 border-orange-200 bg-orange-50 rounded-lg p-8 text-center">

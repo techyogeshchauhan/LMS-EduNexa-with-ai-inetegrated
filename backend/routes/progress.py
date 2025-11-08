@@ -73,15 +73,7 @@ def get_course_progress(course_id):
             'student_id': user_id
         })
         
-        # Get quiz progress
-        quizzes = list(db.quizzes.find({'course_id': course_id}))
-        total_quizzes = len(quizzes)
-        
-        completed_quizzes = db.quiz_attempts.count_documents({
-            'student_id': user_id,
-            'quiz_id': {'$in': [str(quiz['_id']) for quiz in quizzes]},
-            'completed': True
-        })
+
         
         progress_data = {
             'course_id': course_id,
@@ -96,10 +88,7 @@ def get_course_progress(course_id):
                 'total': total_assignments,
                 'submitted': submitted_assignments
             },
-            'quizzes': {
-                'total': total_quizzes,
-                'completed': completed_quizzes
-            },
+
             'last_accessed': enrollment.get('last_accessed', enrollment.get('enrolled_at'))
         }
         

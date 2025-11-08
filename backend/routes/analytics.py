@@ -6,6 +6,218 @@ from collections import defaultdict
 
 analytics_bp = Blueprint('analytics', __name__)
 
+@analytics_bp.route('/teacher/dashboard', methods=['GET'])
+@jwt_required()
+def get_teacher_dashboard_stats():
+    try:
+        user_id = get_jwt_identity()
+        db = current_app.db
+        
+        # Get user and verify teacher role
+        user = db.users.find_one({'_id': ObjectId(user_id)})
+        if not user or user['role'] != 'teacher':
+            return jsonify({'error': 'Teacher access required'}), 403
+        
+        # Get teacher's courses
+        courses = list(db.courses.find({'teacher_id': user_id}))
+        course_ids = [str(course['_id']) for course in courses]
+        
+        # Calculate active courses count
+        active_courses = len([c for c in courses if c.get('is_active', True)])
+        
+        # Calculate total enrolled students across all courses
+        total_students = 0
+        if course_ids:
+            total_students = db.enrollments.count_documents({'course_id': {'$in': course_ids}})
+        
+        # Get assignments created by teacher
+        assignments = list(db.assignments.find({'course_id': {'$in': course_ids}}))
+        assignment_ids = [str(assignment['_id']) for assignment in assignments]
+        
+        # Calculate pending assignments (submissions without grades)
+        pending_grades = 0
+        if assignment_ids:
+            pending_grades = db.submissions.count_documents({
+                'assignment_id': {'$in': assignment_ids},
+                'grade': None
+            })
+        
+        # Calculate average course ratings (placeholder - would need rating system)
+        # For now, we'll calculate based on course completion rates as a proxy
+        course_rating = 0.0
+        if courses and course_ids:
+            # Calculate average completion rate across courses as rating proxy
+            total_completion = 0
+            rated_courses = 0
+            
+            for course_id in course_ids:
+                enrollments = list(db.enrollments.find({'course_id': course_id}))
+                if enrollments:
+                    avg_progress = sum([e.get('progress', 0) for e in enrollments]) / len(enrollments)
+                    total_completion += avg_progress
+                    rated_courses += 1
+            
+            if rated_courses > 0:
+                # Convert completion percentage to 5-star rating (0-100% -> 0-5 stars)
+                course_rating = (total_completion / rated_courses) * 5 / 100
+        
+        # Get recent activity data for monthly growth calculation
+        thirty_days_ago = datetime.utcnow() - timedelta(days=30)
+        
+        # Monthly growth in courses
+        recent_courses = db.courses.count_documents({
+            'teacher_id': user_id,
+            'created_at': {'$gte': thirty_days_ago}
+        })
+        
+        # Monthly growth in students (new enrollments)
+        recent_enrollments = 0
+        if course_ids:
+            recent_enrollments = db.enrollments.count_documents({
+                'course_id': {'$in': course_ids},
+                'enrolled_at': {'$gte': thirty_days_ago}
+            })
+        
+        # Calculate rating change (placeholder - would need historical data)
+        rating_change = 0.0  # Would calculate from previous period's rating
+        
+        dashboard_stats = {
+            'active_courses': active_courses,
+            'total_students': total_students,
+            'pending_grades': pending_grades,
+            'course_rating': round(course_rating, 2),
+            'monthly_growth': {
+                'courses': recent_courses,
+                'students': recent_enrollments,
+                'rating_change': rating_change
+            }
+        }
+        
+        return jsonify({'dashboard_stats': dashboard_stats}), 200
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@analytics_bp.route('/teacher/assignments', methods=['GET'])
+@jwt_required()
+def get_teacher_assignment_stats():
+    try:
+        user_id = get_jwt_identity()
+        db = current_app.db
+        
+        # Get user and verify teacher role
+        user = db.users.find_one({'_id': ObjectId(user_id)})
+        if not user or user['role'] != 'teacher':
+            return jsonify({'error': 'Teacher access required'}), 403
+        
+        # Get teacher's courses
+        courses = list(db.courses.find({'teacher_id': user_id}))
+        course_ids = [str(course['_id']) for course in courses]
+        
+        if not course_ids:
+            return jsonify({
+                'assignment_stats': {
+                    'total_assignments': 0,
+                    'pending_submissions': 0,
+                    'graded_submissions': 0,
+                    'completion_rate': 0,
+                    'average_grade': 0,
+                    'grading_workload': [],
+                    'assignment_performance': []
+                }
+            }), 200
+        
+        # Get all assignments for teacher's courses
+        assignments = list(db.assignments.find({'course_id': {'$in': course_ids}}))
+        assignment_ids = [str(assignment['_id']) for assignment in assignments]
+        
+        # Get all submissions for these assignments
+        submissions = list(db.submissions.find({'assignment_id': {'$in': assignment_ids}}))
+        
+        # Calculate basic statistics
+        total_assignments = len(assignments)
+        total_submissions = len(submissions)
+        pending_submissions = len([s for s in submissions if s.get('grade') is None])
+        graded_submissions = len([s for s in submissions if s.get('grade') is not None])
+        
+        # Calculate completion rate
+        total_possible_submissions = 0
+        for assignment in assignments:
+            course_enrollments = db.enrollments.count_documents({'course_id': assignment['course_id']})
+            total_possible_submissions += course_enrollments
+        
+        completion_rate = (total_submissions / total_possible_submissions * 100) if total_possible_submissions > 0 else 0
+        
+        # Calculate average grade
+        graded_subs = [s for s in submissions if s.get('grade') is not None]
+        average_grade = sum([s['grade'] for s in graded_subs]) / len(graded_subs) if graded_subs else 0
+        
+        # Grading workload - assignments with pending submissions
+        grading_workload = []
+        for assignment in assignments:
+            assignment_submissions = [s for s in submissions if s['assignment_id'] == str(assignment['_id'])]
+            pending_count = len([s for s in assignment_submissions if s.get('grade') is None])
+            
+            if pending_count > 0:
+                course = db.courses.find_one({'_id': ObjectId(assignment['course_id'])})
+                grading_workload.append({
+                    'assignment_id': str(assignment['_id']),
+                    'assignment_title': assignment['title'],
+                    'course_title': course['title'] if course else 'Unknown Course',
+                    'due_date': assignment['due_date'],
+                    'pending_submissions': pending_count,
+                    'total_submissions': len(assignment_submissions),
+                    'priority': 'high' if pending_count > 10 else 'medium' if pending_count > 5 else 'low'
+                })
+        
+        # Sort by pending submissions (highest first)
+        grading_workload.sort(key=lambda x: x['pending_submissions'], reverse=True)
+        
+        # Assignment performance analysis
+        assignment_performance = []
+        for assignment in assignments:
+            assignment_submissions = [s for s in submissions if s['assignment_id'] == str(assignment['_id'])]
+            graded_assignment_subs = [s for s in assignment_submissions if s.get('grade') is not None]
+            
+            course = db.courses.find_one({'_id': ObjectId(assignment['course_id'])})
+            course_enrollments = db.enrollments.count_documents({'course_id': assignment['course_id']})
+            
+            # Calculate assignment statistics
+            submission_rate = (len(assignment_submissions) / course_enrollments * 100) if course_enrollments > 0 else 0
+            avg_assignment_grade = sum([s['grade'] for s in graded_assignment_subs]) / len(graded_assignment_subs) if graded_assignment_subs else 0
+            
+            assignment_performance.append({
+                'assignment_id': str(assignment['_id']),
+                'assignment_title': assignment['title'],
+                'course_title': course['title'] if course else 'Unknown Course',
+                'max_points': assignment.get('max_points', 100),
+                'total_submissions': len(assignment_submissions),
+                'graded_submissions': len(graded_assignment_subs),
+                'submission_rate': round(submission_rate, 2),
+                'average_grade': round(avg_assignment_grade, 2),
+                'grade_percentage': round((avg_assignment_grade / assignment.get('max_points', 100)) * 100, 2) if assignment.get('max_points', 100) > 0 else 0,
+                'due_date': assignment['due_date'],
+                'created_at': assignment['created_at']
+            })
+        
+        # Sort by creation date (newest first)
+        assignment_performance.sort(key=lambda x: x['created_at'], reverse=True)
+        
+        assignment_stats = {
+            'total_assignments': total_assignments,
+            'pending_submissions': pending_submissions,
+            'graded_submissions': graded_submissions,
+            'completion_rate': round(completion_rate, 2),
+            'average_grade': round(average_grade, 2),
+            'grading_workload': grading_workload[:10],  # Top 10 assignments needing attention
+            'assignment_performance': assignment_performance
+        }
+        
+        return jsonify({'assignment_stats': assignment_stats}), 200
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
 @analytics_bp.route('/dashboard', methods=['GET'])
 @jwt_required()
 def get_dashboard_analytics():
@@ -39,10 +251,7 @@ def get_dashboard_analytics():
             
             avg_progress = total_progress / len(enrollments) if enrollments else 0
             
-            # Quiz performance
-            quiz_attempts = list(db.quiz_attempts.find({'student_id': user_id}))
-            quiz_scores = [attempt.get('score', 0) for attempt in quiz_attempts]
-            avg_quiz_score = sum(quiz_scores) / len(quiz_scores) if quiz_scores else 0
+
             
             # Assignment submissions
             submissions = list(db.submissions.find({'student_id': user_id}))
@@ -53,17 +262,7 @@ def get_dashboard_analytics():
             # Recent activity
             recent_activities = []
             
-            # Recent quiz attempts
-            recent_quizzes = sorted(quiz_attempts, key=lambda x: x['attempted_at'], reverse=True)[:5]
-            for quiz_attempt in recent_quizzes:
-                quiz = db.quizzes.find_one({'_id': ObjectId(quiz_attempt['quiz_id'])})
-                if quiz:
-                    recent_activities.append({
-                        'type': 'quiz',
-                        'title': f"Completed quiz: {quiz['title']}",
-                        'score': quiz_attempt.get('score', 0),
-                        'date': quiz_attempt['attempted_at']
-                    })
+
             
             # Recent submissions
             recent_submissions = sorted(submissions, key=lambda x: x['submitted_at'], reverse=True)[:5]
@@ -85,8 +284,7 @@ def get_dashboard_analytics():
                 'enrolled_courses': len(enrollments),
                 'average_progress': round(avg_progress, 2),
                 'total_points': user.get('total_points', 0),
-                'quizzes_attempted': len(quiz_attempts),
-                'average_quiz_score': round(avg_quiz_score, 2),
+
                 'assignments_submitted': len(submissions),
                 'average_assignment_grade': round(avg_assignment_grade, 2),
                 'course_progress': course_progress,
@@ -106,10 +304,7 @@ def get_dashboard_analytics():
             assignment_ids = [str(assignment['_id']) for assignment in assignments]
             total_submissions = db.submissions.count_documents({'assignment_id': {'$in': assignment_ids}})
             
-            # Quizzes and attempts
-            quizzes = list(db.quizzes.find({'course_id': {'$in': course_ids}}))
-            quiz_ids = [str(quiz['_id']) for quiz in quizzes]
-            total_quiz_attempts = db.quiz_attempts.count_documents({'quiz_id': {'$in': quiz_ids}})
+
             
             # Course-wise enrollment
             course_enrollments = []
@@ -142,8 +337,7 @@ def get_dashboard_analytics():
                 'total_students': total_enrollments,
                 'assignments_created': len(assignments),
                 'total_submissions': total_submissions,
-                'quizzes_created': len(quizzes),
-                'total_quiz_attempts': total_quiz_attempts,
+
                 'course_enrollments': course_enrollments,
                 'recent_activities': recent_activities
             }
@@ -230,15 +424,12 @@ def get_course_analytics(course_id):
         # Get submissions
         submissions = list(db.submissions.find({'assignment_id': {'$in': assignment_ids}}))
         
-        # Get quizzes
-        quizzes = list(db.quizzes.find({'course_id': course_id}))
-        quiz_ids = [str(quiz['_id']) for quiz in quizzes]
+
         
-        # Get quiz attempts
-        quiz_attempts = list(db.quiz_attempts.find({'quiz_id': {'$in': quiz_ids}}))
+
         
         # Calculate engagement metrics
-        active_students = len(set([s['student_id'] for s in submissions] + [q['student_id'] for q in quiz_attempts]))
+        active_students = len(set([s['student_id'] for s in submissions]))
         engagement_rate = (active_students / total_students * 100) if total_students > 0 else 0
         
         # Assignment performance
@@ -257,23 +448,7 @@ def get_course_analytics(course_id):
                     'submission_rate': round(len(assignment_submissions) / total_students * 100, 2) if total_students > 0 else 0
                 })
         
-        # Quiz performance
-        quiz_performance = []
-        for quiz in quizzes:
-            quiz_attempts_for_quiz = [q for q in quiz_attempts if q['quiz_id'] == str(quiz['_id'])]
-            
-            if quiz_attempts_for_quiz:
-                scores = [q['score'] for q in quiz_attempts_for_quiz]
-                avg_score = sum(scores) / len(scores)
-                unique_students = len(set([q['student_id'] for q in quiz_attempts_for_quiz]))
-                
-                quiz_performance.append({
-                    'quiz_title': quiz['title'],
-                    'attempts': len(quiz_attempts_for_quiz),
-                    'unique_students': unique_students,
-                    'average_score': round(avg_score, 2),
-                    'participation_rate': round(unique_students / total_students * 100, 2) if total_students > 0 else 0
-                })
+
         
         # Student progress distribution
         progress_distribution = {
@@ -301,24 +476,21 @@ def get_course_analytics(course_id):
             if student:
                 # Calculate student's performance in this course
                 student_submissions = [s for s in submissions if s['student_id'] == enrollment['student_id']]
-                student_quiz_attempts = [q for q in quiz_attempts if q['student_id'] == enrollment['student_id']]
+
                 
                 graded_submissions = [s for s in student_submissions if s.get('grade') is not None]
                 avg_assignment_grade = sum([s['grade'] for s in graded_submissions]) / len(graded_submissions) if graded_submissions else 0
                 
-                quiz_scores = [q['score'] for q in student_quiz_attempts]
-                avg_quiz_score = sum(quiz_scores) / len(quiz_scores) if quiz_scores else 0
-                
-                overall_score = (avg_assignment_grade + avg_quiz_score) / 2 if (graded_submissions or quiz_scores) else 0
+                overall_score = avg_assignment_grade if graded_submissions else 0
                 
                 student_performance.append({
                     'student_name': student['name'],
                     'roll_no': student.get('roll_no', ''),
                     'progress': enrollment.get('progress', 0),
                     'assignments_submitted': len(student_submissions),
-                    'quizzes_attempted': len(student_quiz_attempts),
+
                     'average_assignment_grade': round(avg_assignment_grade, 2),
-                    'average_quiz_score': round(avg_quiz_score, 2),
+
                     'overall_performance': round(overall_score, 2)
                 })
         
@@ -332,9 +504,8 @@ def get_course_analytics(course_id):
             'active_students': active_students,
             'engagement_rate': round(engagement_rate, 2),
             'total_assignments': len(assignments),
-            'total_quizzes': len(quizzes),
             'assignment_performance': assignment_performance,
-            'quiz_performance': quiz_performance,
+
             'progress_distribution': progress_distribution,
             'top_students': top_students
         }
@@ -382,18 +553,7 @@ def get_student_analytics(student_id):
                 graded_submissions = [s for s in submissions if s.get('grade') is not None]
                 avg_assignment_grade = sum([s['grade'] for s in graded_submissions]) / len(graded_submissions) if graded_submissions else 0
                 
-                # Get quizzes for this course
-                quizzes = list(db.quizzes.find({'course_id': enrollment['course_id']}))
-                quiz_ids = [str(q['_id']) for q in quizzes]
-                
-                # Get student's quiz attempts
-                quiz_attempts = list(db.quiz_attempts.find({
-                    'quiz_id': {'$in': quiz_ids},
-                    'student_id': student_id
-                }))
-                
-                quiz_scores = [q['score'] for q in quiz_attempts]
-                avg_quiz_score = sum(quiz_scores) / len(quiz_scores) if quiz_scores else 0
+
                 
                 course_performance.append({
                     'course_title': course['title'],
@@ -401,20 +561,17 @@ def get_student_analytics(student_id):
                     'assignments_submitted': len(submissions),
                     'total_assignments': len(assignments),
                     'average_assignment_grade': round(avg_assignment_grade, 2),
-                    'quizzes_attempted': len(quiz_attempts),
-                    'total_quizzes': len(quizzes),
-                    'average_quiz_score': round(avg_quiz_score, 2)
+
                 })
         
         # Overall statistics
         all_submissions = list(db.submissions.find({'student_id': student_id}))
-        all_quiz_attempts = list(db.quiz_attempts.find({'student_id': student_id}))
+
         
         graded_submissions = [s for s in all_submissions if s.get('grade') is not None]
         overall_assignment_avg = sum([s['grade'] for s in graded_submissions]) / len(graded_submissions) if graded_submissions else 0
         
-        quiz_scores = [q['score'] for q in all_quiz_attempts]
-        overall_quiz_avg = sum(quiz_scores) / len(quiz_scores) if quiz_scores else 0
+
         
         # Learning progress over time
         progress_timeline = []
@@ -436,9 +593,9 @@ def get_student_analytics(student_id):
             'total_points': student.get('total_points', 0),
             'courses_enrolled': len(enrollments),
             'assignments_submitted': len(all_submissions),
-            'quizzes_attempted': len(all_quiz_attempts),
+
             'overall_assignment_average': round(overall_assignment_avg, 2),
-            'overall_quiz_average': round(overall_quiz_avg, 2),
+
             'course_performance': course_performance,
             'progress_timeline': progress_timeline
         }
@@ -496,7 +653,7 @@ def get_system_analytics():
         
         course_trends = list(db.courses.aggregate(course_pipeline))
         
-        # Activity trends (submissions and quiz attempts)
+        # Activity trends (submissions)
         submission_pipeline = [
             {'$match': {'submitted_at': {'$gte': start_date}}},
             {'$group': {
@@ -512,33 +669,19 @@ def get_system_analytics():
         
         submission_trends = list(db.submissions.aggregate(submission_pipeline))
         
-        quiz_pipeline = [
-            {'$match': {'attempted_at': {'$gte': start_date}}},
-            {'$group': {
-                '_id': {
-                    'year': {'$year': '$attempted_at'},
-                    'month': {'$month': '$attempted_at'},
-                    'day': {'$dayOfMonth': '$attempted_at'}
-                },
-                'count': {'$sum': 1}
-            }},
-            {'$sort': {'_id': 1}}
-        ]
-        
-        quiz_trends = list(db.quiz_attempts.aggregate(quiz_pipeline))
+
         
         # System totals
         total_users = db.users.count_documents({})
         total_courses = db.courses.count_documents({})
         total_enrollments = db.enrollments.count_documents({})
         total_assignments = db.assignments.count_documents({})
-        total_quizzes = db.quizzes.count_documents({})
+
         
         # Active users (users who have activity in the last 7 days)
         seven_days_ago = datetime.utcnow() - timedelta(days=7)
         active_users = len(set(
-            [s['student_id'] for s in db.submissions.find({'submitted_at': {'$gte': seven_days_ago}})] +
-            [q['student_id'] for q in db.quiz_attempts.find({'attempted_at': {'$gte': seven_days_ago}})]
+            [s['student_id'] for s in db.submissions.find({'submitted_at': {'$gte': seven_days_ago}})]
         ))
         
         analytics_data = {

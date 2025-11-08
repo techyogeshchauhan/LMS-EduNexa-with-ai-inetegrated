@@ -38,6 +38,10 @@ const UserManagement: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [roleFilter, setRoleFilter] = useState('');
+  const [selectedUser, setSelectedUser] = useState<User | null>(null);
+  const [showUserModal, setShowUserModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editFormData, setEditFormData] = useState<Partial<User>>({});
 
   const fetchUsers = async () => {
     setLoading(true);
@@ -301,14 +305,139 @@ const UserManagement: React.FC = () => {
     }
   };
 
-  const handleEditUser = (userId: string) => {
-    // For now, just show an alert. You can implement a modal or navigate to edit page
-    alert(`Edit user functionality will be implemented. User ID: ${userId}`);
+  const handleEditUser = async (userId: string) => {
+    try {
+      const token = localStorage.getItem('access_token');
+      if (!token) {
+        alert('Authentication token not found. Please login again.');
+        return;
+      }
+
+      const response = await fetch(`http://localhost:5000/api/users/${userId}`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setSelectedUser(data.user);
+        setEditFormData({
+          name: data.user.name,
+          email: data.user.email,
+          role: data.user.role,
+          department: data.user.department || '',
+          phone: data.user.phone || '',
+          is_active: data.user.is_active
+        });
+        setShowEditModal(true);
+      } else {
+        let errorMessage = 'Failed to fetch user details';
+        if (response.status === 401) {
+          errorMessage = 'Authentication failed. Please login again.';
+        } else if (response.status === 403) {
+          errorMessage = 'Access denied. Admin privileges required.';
+        } else if (response.status === 404) {
+          errorMessage = 'User not found.';
+        }
+        alert(errorMessage);
+      }
+    } catch (err: any) {
+      console.error('Error fetching user details:', err);
+      alert('Error: Cannot connect to server. Please check if the backend is running.');
+    }
   };
 
-  const handleViewUser = (userId: string) => {
-    // For now, just show an alert. You can implement a modal or navigate to view page
-    alert(`View user details functionality will be implemented. User ID: ${userId}`);
+  const handleUpdateUser = async () => {
+    if (!selectedUser) return;
+
+    try {
+      const token = localStorage.getItem('access_token');
+      if (!token) {
+        alert('Authentication token not found. Please login again.');
+        return;
+      }
+
+      const response = await fetch(`http://localhost:5000/api/users/${selectedUser._id}`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
+        body: JSON.stringify(editFormData)
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        setShowEditModal(false);
+        setSelectedUser(null);
+        setEditFormData({});
+        await fetchUsers(); // Refresh the user list
+        alert(result.message || 'User updated successfully');
+      } else {
+        let errorMessage = 'Failed to update user';
+        if (response.status === 401) {
+          errorMessage = 'Authentication failed. Please login again.';
+        } else if (response.status === 403) {
+          errorMessage = 'Access denied. Admin privileges required.';
+        } else if (response.status === 404) {
+          errorMessage = 'User not found.';
+        } else {
+          try {
+            const errorData = await response.json();
+            errorMessage = errorData.error || errorMessage;
+          } catch {
+            errorMessage = `Server error (${response.status})`;
+          }
+        }
+        alert(errorMessage);
+      }
+    } catch (err: any) {
+      console.error('Error updating user:', err);
+      alert('Error: Cannot connect to server. Please check if the backend is running.');
+    }
+  };
+
+  const handleViewUser = async (userId: string) => {
+    try {
+      const token = localStorage.getItem('access_token');
+      if (!token) {
+        alert('Authentication token not found. Please login again.');
+        return;
+      }
+
+      const response = await fetch(`http://localhost:5000/api/users/${userId}`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setSelectedUser(data.user);
+        setShowUserModal(true);
+      } else {
+        let errorMessage = 'Failed to fetch user details';
+        if (response.status === 401) {
+          errorMessage = 'Authentication failed. Please login again.';
+        } else if (response.status === 403) {
+          errorMessage = 'Access denied. Admin privileges required.';
+        } else if (response.status === 404) {
+          errorMessage = 'User not found.';
+        }
+        alert(errorMessage);
+      }
+    } catch (err: any) {
+      console.error('Error fetching user details:', err);
+      alert('Error: Cannot connect to server. Please check if the backend is running.');
+    }
   };
 
   const getRoleIcon = (role: string) => {
@@ -643,6 +772,265 @@ const UserManagement: React.FC = () => {
           </div>
         )}
       </div>
+
+      {/* User Detail Modal */}
+      {showUserModal && selectedUser && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-bold text-gray-900">User Details</h2>
+              <button
+                onClick={() => {
+                  setShowUserModal(false);
+                  setSelectedUser(null);
+                }}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                ✕
+              </button>
+            </div>
+            
+            <div className="space-y-4">
+              <div className="flex items-center space-x-4">
+                <div className="h-16 w-16 rounded-full bg-gray-200 flex items-center justify-center">
+                  <span className="text-xl font-medium text-gray-700">
+                    {selectedUser.name.charAt(0).toUpperCase()}
+                  </span>
+                </div>
+                <div>
+                  <h3 className="text-lg font-medium text-gray-900">{selectedUser.name}</h3>
+                  <p className="text-gray-600">{selectedUser.email}</p>
+                  <div className="flex items-center mt-1">
+                    {getRoleIcon(selectedUser.role)}
+                    <span className={`ml-2 px-2 py-1 text-xs font-medium rounded-full ${getRoleBadgeColor(selectedUser.role)}`}>
+                      {selectedUser.role.replace('_', ' ').toUpperCase()}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Status</label>
+                  <span className={`inline-block px-2 py-1 text-xs font-medium rounded-full ${selectedUser.is_active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+                    {selectedUser.is_active ? 'Active' : 'Inactive'}
+                  </span>
+                </div>
+                
+                {selectedUser.phone && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">Phone</label>
+                    <p className="text-gray-900">{selectedUser.phone}</p>
+                  </div>
+                )}
+                
+                {selectedUser.department && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">Department</label>
+                    <p className="text-gray-900">{selectedUser.department}</p>
+                  </div>
+                )}
+                
+                {selectedUser.roll_no && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">Roll Number</label>
+                    <p className="text-gray-900">{selectedUser.roll_no}</p>
+                  </div>
+                )}
+                
+                {selectedUser.employee_id && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">Employee ID</label>
+                    <p className="text-gray-900">{selectedUser.employee_id}</p>
+                  </div>
+                )}
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Created At</label>
+                  <p className="text-gray-900">{new Date(selectedUser.created_at).toLocaleDateString()}</p>
+                </div>
+                
+                {selectedUser.last_login && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">Last Login</label>
+                    <p className="text-gray-900">{new Date(selectedUser.last_login).toLocaleDateString()}</p>
+                  </div>
+                )}
+              </div>
+
+              {/* Role-specific information */}
+              {selectedUser.role === 'student' && selectedUser.enrolled_courses_details && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Enrolled Courses</label>
+                  <div className="space-y-2">
+                    {selectedUser.enrolled_courses_details.length > 0 ? (
+                      selectedUser.enrolled_courses_details.map((course: any, index: number) => (
+                        <div key={index} className="bg-gray-50 p-3 rounded-lg">
+                          <p className="font-medium">{course.title}</p>
+                          <p className="text-sm text-gray-600">Progress: {course.progress}%</p>
+                          <p className="text-sm text-gray-600">Enrolled: {new Date(course.enrolled_at).toLocaleDateString()}</p>
+                        </div>
+                      ))
+                    ) : (
+                      <p className="text-gray-500">No courses enrolled</p>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {selectedUser.role === 'teacher' && selectedUser.created_courses_details && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Created Courses</label>
+                  <div className="space-y-2">
+                    {selectedUser.created_courses_details.length > 0 ? (
+                      selectedUser.created_courses_details.map((course: any, index: number) => (
+                        <div key={index} className="bg-gray-50 p-3 rounded-lg">
+                          <p className="font-medium">{course.title}</p>
+                          <p className="text-sm text-gray-600">Students: {course.enrolled_students}</p>
+                          <p className="text-sm text-gray-600">Created: {new Date(course.created_at).toLocaleDateString()}</p>
+                        </div>
+                      ))
+                    ) : (
+                      <p className="text-gray-500">No courses created</p>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="flex justify-end space-x-2 mt-6">
+              <button
+                onClick={() => {
+                  setShowUserModal(false);
+                  setSelectedUser(null);
+                }}
+                className="px-4 py-2 text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50"
+              >
+                Close
+              </button>
+              <button
+                onClick={() => {
+                  setShowUserModal(false);
+                  setSelectedUser(null);
+                  handleEditUser(selectedUser._id);
+                }}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+              >
+                Edit User
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit User Modal */}
+      {showEditModal && selectedUser && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-bold text-gray-900">Edit User</h2>
+              <button
+                onClick={() => {
+                  setShowEditModal(false);
+                  setSelectedUser(null);
+                  setEditFormData({});
+                }}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                ✕
+              </button>
+            </div>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
+                <input
+                  type="text"
+                  value={editFormData.name || ''}
+                  onChange={(e) => setEditFormData({...editFormData, name: e.target.value})}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                <input
+                  type="email"
+                  value={editFormData.email || ''}
+                  onChange={(e) => setEditFormData({...editFormData, email: e.target.value})}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Role</label>
+                <select
+                  value={editFormData.role || ''}
+                  onChange={(e) => setEditFormData({...editFormData, role: e.target.value as User['role']})}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="student">Student</option>
+                  <option value="teacher">Teacher</option>
+                  <option value="admin">Admin</option>
+                  <option value="super_admin">Super Admin</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Department</label>
+                <input
+                  type="text"
+                  value={editFormData.department || ''}
+                  onChange={(e) => setEditFormData({...editFormData, department: e.target.value})}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
+                <input
+                  type="text"
+                  value={editFormData.phone || ''}
+                  onChange={(e) => setEditFormData({...editFormData, phone: e.target.value})}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              <div className="flex items-center">
+                <input
+                  type="checkbox"
+                  id="is_active"
+                  checked={editFormData.is_active || false}
+                  onChange={(e) => setEditFormData({...editFormData, is_active: e.target.checked})}
+                  className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                />
+                <label htmlFor="is_active" className="ml-2 block text-sm text-gray-900">
+                  Active User
+                </label>
+              </div>
+            </div>
+
+            <div className="flex justify-end space-x-2 mt-6">
+              <button
+                onClick={() => {
+                  setShowEditModal(false);
+                  setSelectedUser(null);
+                  setEditFormData({});
+                }}
+                className="px-4 py-2 text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleUpdateUser}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+              >
+                Update User
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

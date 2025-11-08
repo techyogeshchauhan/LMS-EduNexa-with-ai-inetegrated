@@ -1,22 +1,20 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useLMS } from '../../contexts/LMSContext';
 import { useAuth } from '../../contexts/AuthContext';
+import { notificationsAPI } from '../../config/api';
 import { 
   Home, 
   BookOpen, 
   FileText as Assignment, 
-  MessageSquare, 
   BarChart3, 
   Settings, 
   Brain, 
   Users, 
-  Calendar, 
   ChevronLeft, 
   ChevronRight,
   Bell,
   User,
   GraduationCap,
-  ClipboardList,
   PlusCircle,
   Video
 } from 'lucide-react';
@@ -31,94 +29,201 @@ interface SidebarItem {
 export const TeacherSidebar: React.FC = () => {
   const { sidebarOpen, setSidebarOpen } = useLMS();
   const { user } = useAuth();
+  const [unreadNotifications, setUnreadNotifications] = useState(0);
+  const [isMobile, setIsMobile] = useState(false);
+  const [currentPath, setCurrentPath] = useState(window.location.pathname);
+
+  // Detect mobile screen
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 1024);
+    };
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
+
+  // Track current path for active state highlighting
+  useEffect(() => {
+    const handlePathChange = () => {
+      setCurrentPath(window.location.pathname);
+    };
+
+    // Listen for popstate events (back/forward navigation)
+    window.addEventListener('popstate', handlePathChange);
+    
+    // Also listen for custom navigation events
+    window.addEventListener('pushstate', handlePathChange);
+
+    return () => {
+      window.removeEventListener('popstate', handlePathChange);
+      window.removeEventListener('pushstate', handlePathChange);
+    };
+  }, []);
+
+  // Fetch unread notification count
+  useEffect(() => {
+    const fetchNotificationCount = async () => {
+      try {
+        const notifData = await notificationsAPI.getUnreadCount();
+        setUnreadNotifications((notifData as any).unread_count || 0);
+      } catch (error) {
+        console.error('Failed to fetch notification count:', error);
+      }
+    };
+
+    if (user) {
+      fetchNotificationCount();
+      
+      // Poll for updates every 30 seconds
+      const interval = setInterval(fetchNotificationCount, 30000);
+      return () => clearInterval(interval);
+    }
+  }, [user]);
 
   const navigationItems: SidebarItem[] = [
     { icon: Home, label: 'Dashboard', href: '/dashboard' },
     { icon: BookOpen, label: 'My Courses', href: '/courses' },
     { icon: PlusCircle, label: 'Create Course', href: '/courses/create' },
     { icon: Video, label: 'Video Management', href: '/videos' },
-    { icon: Assignment, label: 'Assignments', href: '/assignments', badge: 8 },
-    { icon: ClipboardList, label: 'Grading', href: '/grading', badge: 12 },
+    { icon: Assignment, label: 'Assignments', href: '/assignments/teacher' },
     { icon: Users, label: 'My Students', href: '/students' },
-    { icon: MessageSquare, label: 'Discussions', href: '/discussions', badge: 4 },
     { icon: BarChart3, label: 'Analytics', href: '/analytics' },
     { icon: Brain, label: 'AI Assistant', href: '/ai-assistant' },
-    { icon: Calendar, label: 'Schedule', href: '/schedule' },
-    { icon: Bell, label: 'Notifications', href: '/notifications', badge: 3 },
+    { icon: Bell, label: 'Notifications', href: '/notifications', badge: unreadNotifications || undefined },
     { icon: User, label: 'Profile', href: '/profile' },
     { icon: Settings, label: 'Settings', href: '/settings' }
   ];
 
+  const handleNavigation = (e: React.MouseEvent<HTMLAnchorElement>, href: string) => {
+    e.preventDefault();
+    
+    // Update current path immediately for responsive UI
+    setCurrentPath(href);
+    
+    // Update browser history
+    window.history.pushState({}, '', href);
+    
+    // Dispatch custom navigation event to trigger router update
+    window.dispatchEvent(new CustomEvent('navigation'));
+    
+    // Also dispatch popstate for compatibility
+    window.dispatchEvent(new PopStateEvent('popstate'));
+    
+    // Close sidebar on mobile after navigation
+    if (isMobile) {
+      setSidebarOpen(false);
+    }
+  };
+
+  // Helper function to check if a path is active
+  const isActivePath = (href: string): boolean => {
+    // Exact match for most routes
+    if (currentPath === href) {
+      return true;
+    }
+    
+    // Special handling for course routes
+    if (href === '/courses' && currentPath.startsWith('/courses/') && currentPath !== '/courses/create') {
+      return true;
+    }
+    
+    // Special handling for assignment routes
+    if (href === '/assignments/teacher' && currentPath.startsWith('/assignments/')) {
+      return true;
+    }
+    
+    return false;
+  };
+
   return (
-    <div className={`fixed inset-y-0 left-0 z-50 bg-white shadow-lg transition-all duration-300 ${
-      sidebarOpen ? 'w-64' : 'w-16'
-    }`}>
-      <div className="flex flex-col h-full">
-        {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-gray-200">
-          {sidebarOpen && (
-            <div className="flex items-center gap-2">
-              <div className="bg-gradient-to-r from-green-600 to-blue-600 p-2 rounded-lg">
-                <GraduationCap className="h-6 w-6 text-white" />
+    <>
+      {/* Mobile Overlay */}
+      {isMobile && sidebarOpen && (
+        <div 
+          className="fixed inset-0 bg-black bg-opacity-50 z-40 lg:hidden"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+      
+      {/* Sidebar */}
+      <div className={`fixed inset-y-0 left-0 z-50 bg-white shadow-lg transition-all duration-300 ${
+        isMobile 
+          ? sidebarOpen ? 'translate-x-0 w-64' : '-translate-x-full w-64'
+          : sidebarOpen ? 'w-64' : 'w-16'
+      }`}>
+        <div className="flex flex-col h-full">
+          {/* Header */}
+          <div className="flex items-center justify-between p-3 sm:p-4 border-b border-gray-200">
+            {(sidebarOpen || isMobile) && (
+              <div className="flex items-center gap-2">
+                <div className="bg-gradient-to-r from-green-600 to-blue-600 p-1.5 sm:p-2 rounded-lg">
+                  <GraduationCap className="h-5 w-5 sm:h-6 sm:w-6 text-white" />
+                </div>
+                <div>
+                  <h1 className="text-base sm:text-lg font-bold text-gray-900">EduNexa</h1>
+                  <p className="text-xs text-gray-500">Teacher Portal</p>
+                </div>
               </div>
-              <div>
-                <h1 className="text-lg font-bold text-gray-900">EduNexa</h1>
-                <p className="text-xs text-gray-500">Teacher Portal</p>
+            )}
+            <button
+              onClick={() => setSidebarOpen(!sidebarOpen)}
+              className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
+            >
+              {sidebarOpen ? (
+                <ChevronLeft className="h-5 w-5 text-gray-600" />
+              ) : (
+                <ChevronRight className="h-5 w-5 text-gray-600" />
+              )}
+            </button>
+          </div>
+
+          {/* Navigation */}
+          <nav className="flex-1 px-2 sm:px-4 py-4 sm:py-6 space-y-1 sm:space-y-2 overflow-y-auto">
+            {navigationItems.map((item, index) => (
+              <a
+                key={index}
+                href={item.href}
+                onClick={(e) => handleNavigation(e, item.href)}
+                className={`flex items-center gap-3 px-2 sm:px-3 py-2.5 sm:py-3 text-sm sm:text-base rounded-lg transition-all duration-200 group ${
+                  isActivePath(item.href)
+                    ? 'bg-green-50 text-green-600'
+                    : 'text-gray-700 hover:bg-green-50 hover:text-green-600'
+                }`}
+              >
+                <item.icon className="h-5 w-5 flex-shrink-0" />
+                {(sidebarOpen || isMobile) && (
+                  <>
+                    <span className="font-medium">{item.label}</span>
+                    {item.badge && (
+                      <span className="ml-auto bg-red-500 text-white text-xs px-2 py-0.5 sm:py-1 rounded-full min-w-[20px] text-center">
+                        {item.badge > 9 ? '9+' : item.badge}
+                      </span>
+                    )}
+                  </>
+                )}
+              </a>
+            ))}
+          </nav>
+
+          {/* User Info */}
+          {(sidebarOpen || isMobile) && (
+            <div className="p-3 sm:p-4 border-t border-gray-200">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 sm:w-10 sm:h-10 bg-gradient-to-r from-green-600 to-blue-600 rounded-full flex items-center justify-center flex-shrink-0">
+                  <span className="text-white text-sm sm:text-base font-medium">
+                    {user?.name.charAt(0).toUpperCase()}
+                  </span>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-gray-900 truncate">{user?.name}</p>
+                  <p className="text-xs text-gray-500 capitalize">Teacher</p>
+                </div>
               </div>
             </div>
           )}
-          <button
-            onClick={() => setSidebarOpen(!sidebarOpen)}
-            className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
-          >
-            {sidebarOpen ? (
-              <ChevronLeft className="h-5 w-5 text-gray-600" />
-            ) : (
-              <ChevronRight className="h-5 w-5 text-gray-600" />
-            )}
-          </button>
         </div>
-
-        {/* Navigation */}
-        <nav className="flex-1 px-4 py-6 space-y-2">
-          {navigationItems.map((item, index) => (
-            <a
-              key={index}
-              href={item.href}
-              className="flex items-center gap-3 px-3 py-3 text-gray-700 rounded-lg hover:bg-green-50 hover:text-green-600 transition-all duration-200 group"
-            >
-              <item.icon className="h-5 w-5 flex-shrink-0" />
-              {sidebarOpen && (
-                <>
-                  <span className="font-medium">{item.label}</span>
-                  {item.badge && (
-                    <span className="ml-auto bg-red-500 text-white text-xs px-2 py-1 rounded-full">
-                      {item.badge}
-                    </span>
-                  )}
-                </>
-              )}
-            </a>
-          ))}
-        </nav>
-
-        {/* User Info */}
-        {sidebarOpen && (
-          <div className="p-4 border-t border-gray-200">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-gradient-to-r from-green-600 to-blue-600 rounded-full flex items-center justify-center">
-                <span className="text-white font-medium">
-                  {user?.name.charAt(0).toUpperCase()}
-                </span>
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-gray-900 truncate">{user?.name}</p>
-                <p className="text-xs text-gray-500 capitalize">Teacher</p>
-              </div>
-            </div>
-          </div>
-        )}
       </div>
-    </div>
+    </>
   );
 };

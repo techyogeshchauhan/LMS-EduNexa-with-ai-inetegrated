@@ -15,13 +15,13 @@ export const AIAssistant: React.FC = () => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputValue, setInputValue] = useState('');
   const [isTyping, setIsTyping] = useState(false);
-  const [chatMode, setChatMode] = useState<'general' | 'explain' | 'summarize' | 'quiz' | 'qa'>('general');
+  const [chatMode, setChatMode] = useState<'general' | 'explain' | 'summarize' | 'qa'>('general');
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const quickActions = [
     { icon: Lightbulb, text: "Explain a topic", action: "Explain the concept of ", mode: 'explain' as const },
     { icon: FileText, text: "Summarize notes", action: "Summarize this: ", mode: 'summarize' as const },
-    { icon: HelpCircle, text: "Quiz help", action: "Help me understand this quiz question: ", mode: 'quiz' as const },
+
     { icon: MessageCircle, text: "Ask a question", action: "I have a question about ", mode: 'qa' as const },
     { icon: BookOpen, text: "Study tips", action: "Give me study tips for ", mode: 'general' as const },
     { icon: GraduationCap, text: "Course help", action: "Help me with my course on ", mode: 'general' as const }
@@ -54,7 +54,7 @@ I'm here to help you succeed in your learning journey!
 
 **❓ Answer Questions** - Ask me anything about your course materials
 
-**🎯 Quiz Help** - Stuck on a quiz? I'll guide you to the answer
+**🎯 Study Help** - Need help understanding concepts? I'll guide you through them
 
 **💡 Study Tips** - Get personalized study strategies
 
@@ -157,13 +157,7 @@ I'll be back soon! 😊`,
           >
             📝 Summarize
           </button>
-          <button
-            onClick={() => setChatMode('quiz')}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${chatMode === 'quiz' ? 'bg-yellow-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              }`}
-          >
-            🎯 Quiz Help
-          </button>
+
           <button
             onClick={() => setChatMode('qa')}
             className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${chatMode === 'qa' ? 'bg-red-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
@@ -188,8 +182,7 @@ I'll be back soon! 😊`,
               Mode: <span className="font-medium">
                 {chatMode === 'general' ? 'General Chat' :
                   chatMode === 'explain' ? 'Explain Topic' :
-                    chatMode === 'summarize' ? 'Summarize' :
-                      chatMode === 'quiz' ? 'Quiz Help' : 'Q&A'}
+                    chatMode === 'summarize' ? 'Summarize' : 'Q&A'}
               </span>
             </div>
           </div>
@@ -276,9 +269,8 @@ I'll be back soon! 😊`,
                 placeholder={
                   chatMode === 'explain' ? 'Enter a topic to explain...' :
                     chatMode === 'summarize' ? 'Paste content to summarize...' :
-                      chatMode === 'quiz' ? 'Paste your quiz question...' :
-                        chatMode === 'qa' ? 'Ask your question...' :
-                          'Ask me anything about your learning...'
+                      chatMode === 'qa' ? 'Ask your question...' :
+                        'Ask me anything about your learning...'
                 }
                 className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
               />

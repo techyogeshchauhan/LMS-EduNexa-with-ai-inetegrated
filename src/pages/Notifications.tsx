@@ -18,15 +18,21 @@ export const Notifications: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<'all' | 'unread'>('all');
   const [unreadCount, setUnreadCount] = useState(0);
+  const [error, setError] = useState<string | null>(null);
 
   const fetchNotifications = async () => {
     setLoading(true);
+    setError(null);
     try {
       const data = await notificationsAPI.getAll(filter === 'unread');
       setNotifications((data as any).notifications || []);
       setUnreadCount((data as any).unread_count || 0);
     } catch (error) {
       console.error('Failed to fetch notifications:', error);
+      setError('Failed to load notifications. Please try again.');
+      // Set empty state on error to prevent showing stale data
+      setNotifications([]);
+      setUnreadCount(0);
     } finally {
       setLoading(false);
     }
@@ -39,27 +45,47 @@ export const Notifications: React.FC = () => {
   const handleMarkAsRead = async (id: string) => {
     try {
       await notificationsAPI.markAsRead(id);
-      fetchNotifications();
+      // Optimistically update the UI
+      setNotifications(prev => 
+        prev.map(n => n._id === id ? { ...n, read: true } : n)
+      );
+      setUnreadCount(prev => Math.max(0, prev - 1));
     } catch (error) {
       console.error('Failed to mark notification as read:', error);
+      setError('Failed to mark notification as read.');
+      // Revert on error
+      fetchNotifications();
     }
   };
 
   const handleMarkAllAsRead = async () => {
     try {
       await notificationsAPI.markAllAsRead();
-      fetchNotifications();
+      // Optimistically update the UI
+      setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+      setUnreadCount(0);
     } catch (error) {
       console.error('Failed to mark all as read:', error);
+      setError('Failed to mark all notifications as read.');
+      // Revert on error
+      fetchNotifications();
     }
   };
 
   const handleDelete = async (id: string) => {
     try {
+      // Optimistically update the UI
+      const wasUnread = notifications.find(n => n._id === id)?.read === false;
+      setNotifications(prev => prev.filter(n => n._id !== id));
+      if (wasUnread) {
+        setUnreadCount(prev => Math.max(0, prev - 1));
+      }
       await notificationsAPI.delete(id);
-      fetchNotifications();
     } catch (error) {
       console.error('Failed to delete notification:', error);
+      setError('Failed to delete notification.');
+      // Revert on error
+      fetchNotifications();
     }
   };
 
@@ -139,6 +165,22 @@ export const Notifications: React.FC = () => {
         </div>
       </div>
 
+      {/* Error Message */}
+      {error && (
+        <div className="mb-4 bg-red-50 border border-red-200 rounded-lg p-4 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <X className="h-5 w-5 text-red-600" />
+            <p className="text-red-800">{error}</p>
+          </div>
+          <button
+            onClick={() => setError(null)}
+            className="text-red-600 hover:text-red-800"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      )}
+
       {/* Notifications List */}
       {loading ? (
         <div className="space-y-3">
@@ -153,9 +195,17 @@ export const Notifications: React.FC = () => {
         <div className="bg-white border border-gray-200 rounded-lg p-12 text-center">
           <Bell className="h-12 w-12 text-gray-400 mx-auto mb-4" />
           <h3 className="text-lg font-medium text-gray-900 mb-2">No notifications</h3>
-          <p className="text-gray-600">
+          <p className="text-gray-600 mb-4">
             {filter === 'unread' ? "You're all caught up!" : "You don't have any notifications yet."}
           </p>
+          {error && (
+            <button
+              onClick={fetchNotifications}
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+            >
+              Retry
+            </button>
+          )}
         </div>
       ) : (
         <div className="space-y-3">
@@ -186,7 +236,15 @@ export const Notifications: React.FC = () => {
                       <a
                         href={notification.link}
                         className="text-blue-600 hover:text-blue-700 font-medium"
-                        onClick={() => !notification.read && handleMarkAsRead(notification._id)}
+                        onClick={(e) => {
+                          e.preventDefault();
+                          if (!notification.read) {
+                            handleMarkAsRead(notification._id);
+                          }
+                          // Navigate using the app's routing
+                          window.history.pushState({}, '', notification.link);
+                          window.dispatchEvent(new PopStateEvent('popstate'));
+                        }}
                       >
                         View Details →
                       </a>

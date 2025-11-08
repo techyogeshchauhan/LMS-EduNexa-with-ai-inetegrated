@@ -19,7 +19,7 @@ import {
 
 export const CoursesPage: React.FC = () => {
   const { user } = useAuth();
-  const { courses } = useLMS();
+  const { courses, fetchCourses } = useLMS();
   const [searchTerm, setSearchTerm] = useState('');
   const [filterCategory, setFilterCategory] = useState('all');
   const [filterStatus, setFilterStatus] = useState('all');
@@ -29,6 +29,13 @@ export const CoursesPage: React.FC = () => {
   const handleCourseClick = (courseId: string) => {
     window.history.pushState({}, '', `/courses/${courseId}`);
     window.dispatchEvent(new PopStateEvent('popstate'));
+  };
+
+  const handleCourseUpdate = () => {
+    // Refresh courses list after update/delete
+    if (fetchCourses) {
+      fetchCourses();
+    }
   };
 
   const categories = [
@@ -277,6 +284,7 @@ export const CoursesPage: React.FC = () => {
               viewMode={viewMode} 
               isTeacher={isTeacher}
               onClick={() => handleCourseClick(course.id)}
+              onUpdate={handleCourseUpdate}
             />
           ))
         ) : (

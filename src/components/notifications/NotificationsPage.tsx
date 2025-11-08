@@ -60,7 +60,7 @@ export const NotificationsPage: React.FC = () => {
       id: '3',
       type: 'achievement',
       title: 'Achievement Unlocked!',
-      message: 'You earned the "Quiz Master" badge for scoring 100% on 5 quizzes',
+      message: 'You earned the "Assignment Master" badge for scoring 100% on 5 assignments',
       timestamp: '2024-02-10T10:45:00Z',
       read: true,
       priority: 'low',

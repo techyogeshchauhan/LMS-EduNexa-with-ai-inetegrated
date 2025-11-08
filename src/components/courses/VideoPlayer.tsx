@@ -1,6 +1,5 @@
 import React, { useRef, useEffect, useState } from 'react';
 import { X } from 'lucide-react';
-import { getAuthToken } from '../../utils/tokenHelper';
 
 interface VideoPlayerProps {
   videoId: string;
@@ -26,14 +25,14 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ videoId, title, onClos
   }, []);
 
   const getVideoUrl = () => {
-    // Video streaming doesn't use query params, uses Authorization header
     return `http://localhost:5000/api/videos/stream/${videoId}`;
   };
 
   // Set up video with auth header and progress tracking
   useEffect(() => {
     if (videoRef.current) {
-      const token = getAuthToken();
+      // Get token - check both possible names
+      const token = localStorage.getItem('access_token') || localStorage.getItem('token');
       if (token) {
         // For video streaming with auth, we need to use fetch and blob
         const loadVideo = async () => {
@@ -50,12 +49,16 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ videoId, title, onClos
               if (videoRef.current) {
                 videoRef.current.src = videoUrl;
               }
+            } else {
+              console.error('Failed to load video:', response.status, response.statusText);
             }
           } catch (error) {
             console.error('Failed to load video:', error);
           }
         };
         loadVideo();
+      } else {
+        console.error('No authentication token found');
       }
     } 
   }, [videoId]);
@@ -66,7 +69,8 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ videoId, title, onClos
     if (!video) return;
 
     const updateProgress = async () => {
-      const token = getAuthToken();
+      // Get token - check both possible names
+      const token = localStorage.getItem('access_token') || localStorage.getItem('token');
       if (!token || !duration) return;
 
       try {

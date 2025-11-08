@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
+import { settingsAPI, UpdateProfileData, ChangePasswordData } from '../../services/settingsAPI';
 import { 
   User, 
   Bell, 
@@ -18,16 +19,41 @@ import {
   Award,
   Lock,
   Eye,
-  EyeOff
+  EyeOff,
+  CheckCircle,
+  AlertCircle,
+  Loader
 } from 'lucide-react';
 
 export const SettingsPage: React.FC = () => {
+  const { user, refreshUser } = useAuth();
   const [activeTab, setActiveTab] = useState('profile');
   const [darkMode, setDarkMode] = useState('system');
   const [language, setLanguage] = useState('en');
   const [showCurrentPassword, setShowCurrentPassword] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  
+  // Loading and feedback states
+  const [isLoading, setIsLoading] = useState(false);
+  const [successMessage, setSuccessMessage] = useState('');
+  const [errorMessage, setErrorMessage] = useState('');
+  
+  // Form data states
+  const [profileData, setProfileData] = useState<UpdateProfileData>({
+    name: user?.name || '',
+    phone: user?.phone || '',
+    department: user?.department || '',
+    year: user?.year || '',
+    semester: (user as any)?.semester || '',
+    designation: (user as any)?.designation || ''
+  });
+  
+  const [passwordData, setPasswordData] = useState<ChangePasswordData>({
+    current_password: '',
+    new_password: '',
+    confirm_password: ''
+  });
 
   const [notifications, setNotifications] = useState({
     email: {
@@ -63,6 +89,104 @@ export const SettingsPage: React.FC = () => {
     { id: 'data', label: 'Data & Storage', icon: Download }
   ];
 
+  // Clear messages after 5 seconds
+  React.useEffect(() => {
+    if (successMessage || errorMessage) {
+      const timer = setTimeout(() => {
+        setSuccessMessage('');
+        setErrorMessage('');
+      }, 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [successMessage, errorMessage]);
+
+  // Handle profile update
+  const handleProfileUpdate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user?._id) return;
+
+    setIsLoading(true);
+    setErrorMessage('');
+    setSuccessMessage('');
+
+    try {
+      const updateData: UpdateProfileData = {
+        name: profileData.name,
+        phone: profileData.phone
+      };
+
+      // Add role-specific fields
+      if (user.role === 'student') {
+        updateData.department = profileData.department;
+        updateData.year = profileData.year;
+        updateData.semester = profileData.semester;
+      } else if (user.role === 'teacher') {
+        updateData.department = profileData.department;
+        updateData.designation = profileData.designation;
+      }
+
+      await settingsAPI.updateProfile(user._id, updateData);
+      await refreshUser?.(); // Refresh user data in context
+      setSuccessMessage('Profile updated successfully!');
+    } catch (error: any) {
+      setErrorMessage(error.message || 'Failed to update profile');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Handle password change
+  const handlePasswordChange = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsLoading(true);
+    setErrorMessage('');
+    setSuccessMessage('');
+
+    // Validation
+    if (!passwordData.current_password || !passwordData.new_password || !passwordData.confirm_password) {
+      setErrorMessage('All password fields are required');
+      setIsLoading(false);
+      return;
+    }
+
+    if (passwordData.new_password.length < 8) {
+      setErrorMessage('New password must be at least 8 characters long');
+      setIsLoading(false);
+      return;
+    }
+
+    if (passwordData.new_password !== passwordData.confirm_password) {
+      setErrorMessage('New passwords do not match');
+      setIsLoading(false);
+      return;
+    }
+
+    try {
+      await settingsAPI.changePassword(passwordData);
+      setSuccessMessage('Password changed successfully!');
+      // Clear password fields
+      setPasswordData({
+        current_password: '',
+        new_password: '',
+        confirm_password: ''
+      });
+    } catch (error: any) {
+      setErrorMessage(error.message || 'Failed to change password');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Handle profile field changes
+  const handleProfileFieldChange = (field: keyof UpdateProfileData, value: string) => {
+    setProfileData(prev => ({ ...prev, [field]: value }));
+  };
+
+  // Handle password field changes
+  const handlePasswordFieldChange = (field: keyof ChangePasswordData, value: string) => {
+    setPasswordData(prev => ({ ...prev, [field]: value }));
+  };
+
   const handleNotificationChange = (type: 'email' | 'push', setting: string, value: boolean) => {
     setNotifications(prev => ({
       ...prev,
@@ -81,26 +205,26 @@ export const SettingsPage: React.FC = () => {
   };
 
   const renderProfileSettings = () => {
-    const { user } = useAuth();
-    
     return (
       <div className="space-y-6">
-        <div>
+        <form onSubmit={handleProfileUpdate}>
           <h3 className="text-lg font-medium text-gray-900 mb-4">Profile Information</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Full Name</label>
               <input
                 type="text"
-                defaultValue={user?.name || ''}
+                value={profileData.name}
+                onChange={(e) => handleProfileFieldChange('name', e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                required
               />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Email</label>
               <input
                 type="email"
-                defaultValue={user?.email || ''}
+                value={user?.email || ''}
                 disabled
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-100 cursor-not-allowed"
               />
@@ -110,7 +234,8 @@ export const SettingsPage: React.FC = () => {
               <label className="block text-sm font-medium text-gray-700 mb-2">Phone</label>
               <input
                 type="tel"
-                defaultValue={user?.phone || ''}
+                value={profileData.phone}
+                onChange={(e) => handleProfileFieldChange('phone', e.target.value)}
                 placeholder="Enter your phone number"
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
@@ -142,14 +267,16 @@ export const SettingsPage: React.FC = () => {
                   <label className="block text-sm font-medium text-gray-700 mb-2">Department</label>
                   <input
                     type="text"
-                    defaultValue={user?.department || ''}
+                    value={profileData.department}
+                    onChange={(e) => handleProfileFieldChange('department', e.target.value)}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Year</label>
                   <select
-                    defaultValue={user?.year || ''}
+                    value={profileData.year}
+                    onChange={(e) => handleProfileFieldChange('year', e.target.value)}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   >
                     <option value="">Select Year</option>
@@ -163,7 +290,8 @@ export const SettingsPage: React.FC = () => {
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Semester</label>
                   <select
-                    defaultValue={(user as any)?.semester || ''}
+                    value={profileData.semester}
+                    onChange={(e) => handleProfileFieldChange('semester', e.target.value)}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   >
                     <option value="">Select Semester</option>
@@ -197,14 +325,16 @@ export const SettingsPage: React.FC = () => {
                   <label className="block text-sm font-medium text-gray-700 mb-2">Department</label>
                   <input
                     type="text"
-                    defaultValue={user?.department || ''}
+                    value={profileData.department}
+                    onChange={(e) => handleProfileFieldChange('department', e.target.value)}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Designation</label>
                   <select
-                    defaultValue={(user as any)?.designation || ''}
+                    value={profileData.designation}
+                    onChange={(e) => handleProfileFieldChange('designation', e.target.value)}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   >
                     <option value="">Select Designation</option>
@@ -247,13 +377,24 @@ export const SettingsPage: React.FC = () => {
           </div>
 
           <div className="mt-6">
-            <button className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors">
-              Save Changes
+            <button 
+              type="submit"
+              disabled={isLoading}
+              className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center gap-2"
+            >
+              {isLoading ? (
+                <>
+                  <Loader className="h-4 w-4 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                'Save Changes'
+              )}
             </button>
           </div>
-        </div>
+        </form>
 
-        <div>
+        <form onSubmit={handlePasswordChange}>
           <h3 className="text-lg font-medium text-gray-900 mb-4">Change Password</h3>
         <div className="space-y-4 max-w-md">
           <div>
@@ -261,7 +402,10 @@ export const SettingsPage: React.FC = () => {
             <div className="relative">
               <input
                 type={showCurrentPassword ? 'text' : 'password'}
+                value={passwordData.current_password}
+                onChange={(e) => handlePasswordFieldChange('current_password', e.target.value)}
                 className="w-full px-3 py-2 pr-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                required
               />
               <button
                 type="button"
@@ -277,7 +421,11 @@ export const SettingsPage: React.FC = () => {
             <div className="relative">
               <input
                 type={showNewPassword ? 'text' : 'password'}
+                value={passwordData.new_password}
+                onChange={(e) => handlePasswordFieldChange('new_password', e.target.value)}
                 className="w-full px-3 py-2 pr-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                required
+                minLength={8}
               />
               <button
                 type="button"
@@ -287,13 +435,17 @@ export const SettingsPage: React.FC = () => {
                 {showNewPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
               </button>
             </div>
+            <p className="text-xs text-gray-500 mt-1">Must be at least 8 characters long</p>
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">Confirm New Password</label>
             <div className="relative">
               <input
                 type={showConfirmPassword ? 'text' : 'password'}
+                value={passwordData.confirm_password}
+                onChange={(e) => handlePasswordFieldChange('confirm_password', e.target.value)}
                 className="w-full px-3 py-2 pr-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                required
               />
               <button
                 type="button"
@@ -304,11 +456,22 @@ export const SettingsPage: React.FC = () => {
               </button>
             </div>
           </div>
-          <button className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors">
-            Update Password
+          <button 
+            type="submit"
+            disabled={isLoading}
+            className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center gap-2"
+          >
+            {isLoading ? (
+              <>
+                <Loader className="h-4 w-4 animate-spin" />
+                Updating...
+              </>
+            ) : (
+              'Update Password'
+            )}
           </button>
         </div>
-      </div>
+      </form>
     </div>
     );
   };
@@ -621,6 +784,22 @@ export const SettingsPage: React.FC = () => {
         <h1 className="text-3xl font-bold text-gray-900 mb-2">Settings</h1>
         <p className="text-gray-600">Manage your account preferences and settings</p>
       </div>
+
+      {/* Success Message */}
+      {successMessage && (
+        <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg flex items-center gap-3">
+          <CheckCircle className="h-5 w-5 text-green-600 flex-shrink-0" />
+          <p className="text-green-800">{successMessage}</p>
+        </div>
+      )}
+
+      {/* Error Message */}
+      {errorMessage && (
+        <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg flex items-center gap-3">
+          <AlertCircle className="h-5 w-5 text-red-600 flex-shrink-0" />
+          <p className="text-red-800">{errorMessage}</p>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
         {/* Sidebar */}

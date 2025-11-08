@@ -1,5 +1,6 @@
 import React from 'react';
 import { useAuth } from '../../contexts/AuthContext';
+import { RoleBasedRoute } from '../auth/RoleBasedRoute';
 import { Dashboard } from '../dashboard/Dashboard';
 import { CoursesPage } from '../courses/CoursesPage';
 import { CreateCoursePage } from '../courses/CreateCoursePage';
@@ -9,20 +10,25 @@ import { AnalyticsPage } from '../analytics/AnalyticsPage';
 import { AIAssistant } from '../ai/AIAssistant';
 import { ProfilePage } from '../profile/ProfilePage';
 import { SettingsPage } from '../settings/SettingsPage';
+import { SuperAdminSettings } from '../settings/SuperAdminSettings';
 import { Notifications } from '../../pages/Notifications';
-import { MessagesPage } from '../messages/MessagesPage';
+// Messages feature temporarily disabled - keeping import commented for future use
+// import { MessagesPage } from '../messages/MessagesPage';
 import { AchievementsPage } from '../achievements/AchievementsPage';
 import { StudentsPage } from '../students/StudentsPage';
 import { SchedulePage } from '../schedule/SchedulePage';
 import { CourseDetailPage } from '../courses/CourseDetailPage';
+import { EditCoursePage } from '../courses/EditCoursePage';
 import { AssignmentDetailPage } from '../assignments/AssignmentDetailPage';
-import { QuizDetailPage } from '../quizzes/QuizDetailPage';
+
 import LearnerAnalytics from '../analytics/LearnerAnalytics';
 import UserManagement from '../admin/UserManagement';
+import { TeacherAIAssistant } from '../ai/TeacherAIAssistant';
 import { VideoManagement } from '../../pages/VideoManagement';
 import { AssignmentTest } from '../test/AssignmentTest';
 import { TeacherAssignmentView } from '../assignments/TeacherAssignmentView';
 import { QuickTest } from '../test/QuickTest';
+import { NavigationTest } from '../../test/NavigationTest';
 
 export const AppRouter: React.FC = () => {
   const { user } = useAuth();
@@ -39,14 +45,36 @@ export const AppRouter: React.FC = () => {
       setCurrentPath(newPath === '/' ? '/dashboard' : newPath);
     };
 
+    // Listen for custom navigation events from sidebar
+    const handleCustomNavigation = () => {
+      const newPath = window.location.pathname;
+      setCurrentPath(newPath === '/' ? '/dashboard' : newPath);
+    };
+
     window.addEventListener('popstate', handlePopState);
-    return () => window.removeEventListener('popstate', handlePopState);
+    window.addEventListener('navigation', handleCustomNavigation);
+    
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+      window.removeEventListener('navigation', handleCustomNavigation);
+    };
   }, []);
 
   const renderPage = () => {
     // Handle dynamic routes
     if (currentPath.startsWith('/courses/') && currentPath !== '/courses/create') {
-      const courseId = currentPath.split('/')[2];
+      const pathParts = currentPath.split('/');
+      const courseId = pathParts[2];
+      
+      // Check if it's an edit route
+      if (pathParts[3] === 'edit') {
+        return (
+          <RoleBasedRoute allowedRoles={['teacher', 'instructor', 'super_admin', 'admin']}>
+            <EditCoursePage courseId={courseId} />
+          </RoleBasedRoute>
+        );
+      }
+      
       return <CourseDetailPage courseId={courseId} />;
     }
 
@@ -56,45 +84,72 @@ export const AppRouter: React.FC = () => {
       case '/courses':
         return <CoursesPage />;
       case '/courses/create':
-        return <CreateCoursePage />;
+        return (
+          <RoleBasedRoute allowedRoles={['teacher', 'instructor', 'super_admin', 'admin']}>
+            <CreateCoursePage />
+          </RoleBasedRoute>
+        );
       case '/videos':
-        return <VideoManagement />;
+        return (
+          <RoleBasedRoute allowedRoles={['teacher', 'instructor', 'super_admin', 'admin']}>
+            <VideoManagement />
+          </RoleBasedRoute>
+        );
       case '/assignments':
         return <AssignmentsPage />;
       case '/discussions':
         return <DiscussionsPage />;
       case '/analytics':
-        return <AnalyticsPage />;
-      case '/analytics/learners':
-        return <LearnerAnalytics />;
+        // Show different analytics based on user role
+        return user?.role === 'teacher' || user?.role === 'instructor' || user?.role === 'super_admin' || user?.role === 'admin'
+          ? <LearnerAnalytics />
+          : <AnalyticsPage />;
       case '/admin/users':
-        return <UserManagement />;
-      case '/ai-assistant':
-        return <AIAssistant />;
+        return (
+          <RoleBasedRoute allowedRoles={['super_admin', 'admin']}>
+            <UserManagement />
+          </RoleBasedRoute>
+        );
       case '/profile':
         return <ProfilePage />;
       case '/settings':
-        return <SettingsPage />;
+      case '/admin/settings':
+        return user?.role === 'super_admin' ? <SuperAdminSettings /> : <SettingsPage />;
       case '/notifications':
         return <Notifications />;
       case '/messages':
-        return <MessagesPage />;
+        // Messages feature temporarily disabled - redirect to dashboard
+        window.history.replaceState({}, '', '/dashboard');
+        return <Dashboard />;
       case '/achievements':
         return <AchievementsPage />;
       case '/students':
-        return <StudentsPage />;
+        return (
+          <RoleBasedRoute allowedRoles={['teacher', 'instructor', 'super_admin', 'admin']}>
+            <StudentsPage />
+          </RoleBasedRoute>
+        );
       case '/schedule':
         return <SchedulePage />;
-      case '/courses/detail':
-        return <CourseDetailPage />;
+      case '/assignments/detail':
+        return <AssignmentDetailPage />;
+      case '/assignments/teacher':
+        return (
+          <RoleBasedRoute allowedRoles={['teacher', 'instructor', 'super_admin', 'admin']}>
+            <TeacherAssignmentView />
+          </RoleBasedRoute>
+        );
+      case '/analytics/learners':
+        return <LearnerAnalytics />;
       case '/test/assignments':
         return <AssignmentTest />;
       case '/test':
         return <QuickTest />;
-      case '/assignments/detail':
-        return <AssignmentDetailPage />;
-      case '/quizzes/detail':
-        return <QuizDetailPage />;
+      case '/test/navigation':
+        return <NavigationTest />;
+      case '/ai-assistant':
+        return user?.role === 'teacher' ? <TeacherAIAssistant /> : <AIAssistant />;
+
       default:
         return <Dashboard />;
     }

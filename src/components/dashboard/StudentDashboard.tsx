@@ -57,14 +57,14 @@ export const StudentDashboard: React.FC = () => {
             "Use active recall techniques when reviewing material",
             "Take regular breaks to maintain focus and retention",
             "Form study groups with classmates for collaborative learning",
-            "Practice with past quizzes and assignments regularly"
+            "Practice with past assignments regularly"
           ],
           performance_summary: {
             strong_areas: [],
             weak_areas: [],
             total_points: user?.total_points || 0,
             courses_enrolled: courses.length,
-            quizzes_attempted: 0,
+
             assignments_submitted: 0
           }
         };
@@ -189,12 +189,7 @@ export const StudentDashboard: React.FC = () => {
   const upcomingAssignments = assignments.filter(a => new Date(a.dueDate) > new Date()).slice(0, 4);
   const recentAnnouncements = announcements.slice(0, 3);
 
-  // Mock quiz results data
-  const recentQuizResults = [
-    { id: '1', title: 'Machine Learning Quiz 1', course: 'Introduction to Machine Learning', score: 85, maxScore: 100, date: '2024-02-08' },
-    { id: '2', title: 'Python Basics Test', course: 'Advanced Python Programming', score: 92, maxScore: 100, date: '2024-02-06' },
-    { id: '3', title: 'Data Structures Quiz', course: 'Data Science Fundamentals', score: 78, maxScore: 100, date: '2024-02-04' }
-  ];
+
 
   // Enhanced course data with progress
   const coursesWithProgress = courses.map(course => ({
@@ -222,9 +217,7 @@ export const StudentDashboard: React.FC = () => {
     return 'low';
   };
 
-  const avgQuizScore = recentQuizResults.length > 0
-    ? Math.round(recentQuizResults.reduce((sum, quiz) => sum + (quiz.score / quiz.maxScore * 100), 0) / recentQuizResults.length)
-    : 0;
+
 
   const totalProgress = coursesWithProgress.length > 0
     ? Math.round(coursesWithProgress.reduce((sum, course) => sum + course.progress, 0) / coursesWithProgress.length)
@@ -233,7 +226,7 @@ export const StudentDashboard: React.FC = () => {
   const statsData = [
     { title: 'Enrolled Courses', value: courses.length.toString(), icon: BookOpen, color: 'blue' as const, change: '+2 this month' },
     { title: 'Average Progress', value: `${totalProgress}%`, icon: TrendingUp, color: 'green' as const, change: '+12% this week' },
-    { title: 'Quiz Average', value: `${avgQuizScore}%`, icon: Trophy, color: 'purple' as const, change: '+5% improvement' },
+
     { title: 'Study Streak', value: '7 days', icon: Calendar, color: 'yellow' as const, change: 'Personal best!' }
   ];
 
@@ -380,38 +373,7 @@ export const StudentDashboard: React.FC = () => {
 
         {/* Right Sidebar */}
         <div className="space-y-4 sm:space-y-6 md:space-y-8">
-          {/* Quiz Results */}
-          <div>
-            <div className="flex items-center justify-between mb-3 sm:mb-4">
-              <h3 className="text-base sm:text-lg font-semibold text-gray-900">Recent Quiz Results</h3>
-              <a href="/quizzes" className="text-blue-600 hover:text-blue-700 text-xs sm:text-sm">
-                View all
-              </a>
-            </div>
-            <div className="space-y-3">
-              {recentQuizResults.map((quiz) => (
-                <div key={quiz.id} className="bg-white border border-gray-200 rounded-lg p-4">
-                  <div className="flex items-start justify-between mb-2">
-                    <div className="flex-1">
-                      <h4 className="font-medium text-gray-900 mb-1">{quiz.title}</h4>
-                      <p className="text-sm text-gray-600">{quiz.course}</p>
-                    </div>
-                    <div className={`px-2 py-1 rounded-full text-xs font-medium ${quiz.score >= 90 ? 'bg-green-100 text-green-800' :
-                        quiz.score >= 75 ? 'bg-blue-100 text-blue-800' :
-                          quiz.score >= 60 ? 'bg-yellow-100 text-yellow-800' :
-                            'bg-red-100 text-red-800'
-                      }`}>
-                      {Math.round((quiz.score / quiz.maxScore) * 100)}%
-                    </div>
-                  </div>
-                  <div className="flex items-center justify-between text-xs text-gray-500">
-                    <span>{quiz.score}/{quiz.maxScore} points</span>
-                    <span>{new Date(quiz.date).toLocaleDateString()}</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
+
 
           {/* Upcoming Assignments */}
           <div>
@@ -613,10 +575,7 @@ export const StudentDashboard: React.FC = () => {
                       <span className="text-gray-600">Courses:</span>
                       <span className="font-medium">{recommendations.performance_summary.courses_enrolled}</span>
                     </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">Quizzes:</span>
-                      <span className="font-medium">{recommendations.performance_summary.quizzes_attempted}</span>
-                    </div>
+
                     <div className="flex justify-between">
                       <span className="text-gray-600">Points:</span>
                       <span className="font-medium text-purple-600">{recommendations.performance_summary.total_points}</span>

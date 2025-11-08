@@ -12,7 +12,7 @@ from dotenv import load_dotenv
 from routes.auth import auth_bp
 from routes.courses import courses_bp
 from routes.assignments import assignments_bp
-from routes.quizzes import quizzes_bp
+
 from routes.users import users_bp
 from routes.ai import ai_bp
 from routes.analytics import analytics_bp
@@ -20,6 +20,10 @@ from routes.learner_analytics import learner_analytics_bp
 from routes.notifications import notifications_bp
 from routes.videos import videos_bp
 from routes.progress import progress_bp
+from routes.student_progress import student_progress_bp
+
+# Import error handler
+from utils.error_handler import register_error_handlers
 
 # Load environment variables
 load_dotenv()
@@ -83,7 +87,7 @@ except Exception as e:
 app.register_blueprint(auth_bp, url_prefix='/api/auth')
 app.register_blueprint(courses_bp, url_prefix='/api/courses')
 app.register_blueprint(assignments_bp, url_prefix='/api/assignments')
-app.register_blueprint(quizzes_bp, url_prefix='/api/quizzes')
+
 app.register_blueprint(users_bp, url_prefix='/api/users')
 app.register_blueprint(ai_bp, url_prefix='/api/ai')
 app.register_blueprint(analytics_bp, url_prefix='/api/analytics')
@@ -91,6 +95,10 @@ app.register_blueprint(learner_analytics_bp, url_prefix='/api/learner-analytics'
 app.register_blueprint(notifications_bp, url_prefix='/api')
 app.register_blueprint(videos_bp, url_prefix='/api/videos')
 app.register_blueprint(progress_bp, url_prefix='/api/progress')
+app.register_blueprint(student_progress_bp, url_prefix='/api/student-progress')
+
+# Register error handlers
+register_error_handlers(app)
 
 # Handle OPTIONS requests for CORS preflight
 @app.before_request

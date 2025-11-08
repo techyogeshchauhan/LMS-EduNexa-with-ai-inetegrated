@@ -1,19 +1,22 @@
 import React from 'react';
 import { Clock, Users, Star, Play } from 'lucide-react';
+import { CourseManagementActions } from '../courses/CourseManagementActions';
 
 interface Course {
   id: string;
+  _id?: string;
   title: string;
   description: string;
   instructor: string;
   progress: number;
   totalLessons: number;
-    dLessons: number;
+  completedLessons: number;
   thumbnail: string;
   category: string;
   difficulty: 'Beginner' | 'Intermediate' | 'Advanced';
   rating: number;
   students: number;
+  is_active?: boolean;
 }
 
 interface CourseCardProps {
@@ -21,9 +24,10 @@ interface CourseCardProps {
   onClick?: () => void;
   viewMode?: 'grid' | 'list';
   isTeacher?: boolean;
+  onUpdate?: () => void;
 }
 
-export const CourseCard: React.FC<CourseCardProps> = ({ course, onClick, viewMode = 'grid', isTeacher = false }) => {
+export const CourseCard: React.FC<CourseCardProps> = ({ course, onClick, viewMode = 'grid', isTeacher = false, onUpdate }) => {
   const getDifficultyColor = (difficulty: string) => {
     switch (difficulty) {
       case 'Beginner': return 'bg-green-100 text-green-800';
@@ -58,9 +62,22 @@ export const CourseCard: React.FC<CourseCardProps> = ({ course, onClick, viewMod
       {/* Content */}
       <div className="p-6">
         <div className="mb-3">
-          <h3 className="text-lg font-semibold text-gray-900 mb-2 line-clamp-2">
-            {course.title}
-          </h3>
+          <div className="flex items-start justify-between gap-2">
+            <h3 className="text-lg font-semibold text-gray-900 mb-2 line-clamp-2 flex-1">
+              {course.title}
+            </h3>
+            {isTeacher && (
+              <div onClick={(e) => e.stopPropagation()}>
+                <CourseManagementActions
+                  courseId={course._id || course.id}
+                  courseTitle={course.title}
+                  isActive={course.is_active !== false}
+                  onUpdate={onUpdate}
+                  onDelete={onUpdate}
+                />
+              </div>
+            )}
+          </div>
           <p className="text-gray-600 text-sm line-clamp-2">{course.description}</p>
         </div>
 

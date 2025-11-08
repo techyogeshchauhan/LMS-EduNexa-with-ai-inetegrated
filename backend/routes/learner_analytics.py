@@ -13,19 +13,7 @@ def calculate_student_performance_score(student_data, course_id=None):
     """
     score_components = []
     
-    # Quiz performance (40% weight)
-    quiz_scores = []
-    quiz_filter = {'student_id': student_data['_id']}
-    if course_id:
-        quiz_filter['course_id'] = course_id
-    
-    quiz_attempts = list(current_app.db.quiz_attempts.find(quiz_filter))
-    if quiz_attempts:
-        quiz_scores = [attempt.get('score', 0) for attempt in quiz_attempts]
-        avg_quiz_score = statistics.mean(quiz_scores)
-        score_components.append(('quiz', avg_quiz_score, 0.4))
-    
-    # Assignment performance (40% weight)
+    # Assignment performance (60% weight)
     assignment_scores = []
     assignment_filter = {'student_id': student_data['_id']}
     if course_id:
@@ -37,9 +25,9 @@ def calculate_student_performance_score(student_data, course_id=None):
         if graded_submissions:
             assignment_scores = [sub['grade'] for sub in graded_submissions]
             avg_assignment_score = statistics.mean(assignment_scores)
-            score_components.append(('assignment', avg_assignment_score, 0.4))
+            score_components.append(('assignment', avg_assignment_score, 0.6))
     
-    # Course progress (20% weight)
+    # Course progress (40% weight)
     enrollment_filter = {'student_id': student_data['_id']}
     if course_id:
         enrollment_filter['course_id'] = course_id
@@ -48,7 +36,7 @@ def calculate_student_performance_score(student_data, course_id=None):
     if enrollments:
         progress_scores = [enrollment.get('progress', 0) for enrollment in enrollments]
         avg_progress = statistics.mean(progress_scores)
-        score_components.append(('progress', avg_progress, 0.2))
+        score_components.append(('progress', avg_progress, 0.4))
     
     # Calculate weighted average
     if not score_components:
@@ -112,25 +100,7 @@ def get_areas_of_difficulty(student_data, course_id=None):
     db = current_app.db
     difficulties = []
     
-    # Low quiz scores by topic/course
-    quiz_filter = {'student_id': student_data['_id']}
-    if course_id:
-        quiz_filter['course_id'] = course_id
-    
-    quiz_attempts = list(db.quiz_attempts.find(quiz_filter))
-    low_quiz_courses = []
-    
-    for attempt in quiz_attempts:
-        if attempt.get('score', 0) < 60:  # Below 60% threshold
-            course = db.courses.find_one({'_id': ObjectId(attempt['course_id'])})
-            if course:
-                low_quiz_courses.append(course['title'])
-    
-    if low_quiz_courses:
-        difficulties.append({
-            'type': 'quiz_performance',
-            'description': f'Low quiz scores in: {", ".join(set(low_quiz_courses))}'
-        })
+
     
     # Overdue assignments
     overdue_assignments = list(db.assignments.find({
@@ -404,19 +374,7 @@ def get_student_recommendations():
         
         # Difficulty-specific recommendations
         for difficulty in difficulties:
-            if difficulty['type'] == 'quiz_performance':
-                recommendations.append({
-                    'type': 'academic',
-                    'title': 'Quiz Performance Issues',
-                    'description': difficulty['description'],
-                    'actions': [
-                        'Review quiz topics with student',
-                        'Provide practice quizzes',
-                        'Clarify misunderstood concepts',
-                        'Adjust quiz format if needed'
-                    ]
-                })
-            elif difficulty['type'] == 'assignment_completion':
+            if difficulty['type'] == 'assignment_completion':
                 recommendations.append({
                     'type': 'behavioral',
                     'title': 'Assignment Completion Issues',
@@ -513,20 +471,20 @@ def get_performance_alerts():
                     'created_at': datetime.utcnow().isoformat()
                 })
             
-            # Alert: Multiple failed quiz attempts
-            recent_quiz_attempts = list(db.quiz_attempts.find({
+            # Alert: Multiple low-grade assignments
+            recent_submissions = list(db.submissions.find({
                 'student_id': student_id,
-                'attempted_at': {'$gte': datetime.utcnow() - timedelta(days=7)}
+                'submitted_at': {'$gte': datetime.utcnow() - timedelta(days=7)}
             }))
             
-            failed_attempts = [attempt for attempt in recent_quiz_attempts if attempt.get('score', 0) < 50]
-            if len(failed_attempts) >= 3:
+            failed_assignments = [sub for sub in recent_submissions if sub.get('grade', 0) < 50]
+            if len(failed_assignments) >= 2:
                 alerts.append({
                     'type': 'academic',
                     'severity': 'high',
                     'student_id': student_id,
                     'student_name': student['name'],
-                    'message': f"{student['name']} has failed {len(failed_attempts)} quizzes in the past week",
+                    'message': f"{student['name']} has {len(failed_assignments)} low-grade assignments in the past week",
                     'created_at': datetime.utcnow().isoformat()
                 })
             

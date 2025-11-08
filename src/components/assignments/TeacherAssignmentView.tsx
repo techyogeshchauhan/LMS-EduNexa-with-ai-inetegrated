@@ -1,5 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { getAuthToken } from '../../utils/tokenHelper';
+import { assignmentsAPI } from '../../config/api';
+import { AssignmentAPI, Assignment as AssignmentType } from '../../services/assignmentAPI';
+import { AssignmentCreationModal } from './AssignmentCreationModal';
+import { GradingModal } from './GradingModal';
+import { AssignmentAnalytics } from './AssignmentAnalytics';
 import { 
   FileText, 
   Users, 
@@ -10,7 +15,11 @@ import {
   Edit,
   Calendar,
   AlertCircle,
-  Download
+  Download,
+  Plus,
+  Trash2,
+  MoreVertical,
+  BarChart3
 } from 'lucide-react';
 import { Toast } from '../common/Toast';
 
@@ -45,14 +54,14 @@ export const TeacherAssignmentView: React.FC = () => {
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [selectedAssignment, setSelectedAssignment] = useState<Assignment | null>(null);
   const [loading, setLoading] = useState(true);
-  const [gradingModal, setGradingModal] = useState<{ show: boolean, submission: Submission | null }>({ 
-    show: false, 
-    submission: null 
-  });
-  const [grade, setGrade] = useState('');
-  const [feedback, setFeedback] = useState('');
-  const [submitting, setSubmitting] = useState(false);
+  const [gradingSubmission, setGradingSubmission] = useState<Submission | null>(null);
+  const [showGradingModal, setShowGradingModal] = useState(false);
   const [toast, setToast] = useState<{ type: 'success' | 'error', message: string } | null>(null);
+  const [showCreationModal, setShowCreationModal] = useState(false);
+  const [editingAssignment, setEditingAssignment] = useState<AssignmentType | null>(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null);
+  const [showOptionsMenu, setShowOptionsMenu] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<'assignments' | 'analytics'>('assignments');
 
   useEffect(() => {
     fetchAssignments();
@@ -66,17 +75,8 @@ export const TeacherAssignmentView: React.FC = () => {
         return;
       }
 
-      const response = await fetch('http://localhost:5000/api/assignments/', {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        setAssignments(data.assignments);
-      }
+      const fetchedAssignments = await AssignmentAPI.getAssignments();
+      setAssignments(fetchedAssignments as Assignment[]);
     } catch (error) {
       console.error('Error fetching assignments:', error);
       setToast({ type: 'error', message: 'Failed to load assignments' });
@@ -85,82 +85,58 @@ export const TeacherAssignmentView: React.FC = () => {
     }
   };
 
+  const handleCreateAssignment = () => {
+    setEditingAssignment(null);
+    setShowCreationModal(true);
+  };
+
+  const handleEditAssignment = (assignment: Assignment) => {
+    setEditingAssignment(assignment as AssignmentType);
+    setShowCreationModal(true);
+    setShowOptionsMenu(null);
+  };
+
+  const handleDeleteAssignment = async (assignmentId: string) => {
+    try {
+      await AssignmentAPI.deleteAssignment(assignmentId);
+      setToast({ type: 'success', message: 'Assignment deleted successfully' });
+      setShowDeleteConfirm(null);
+      setShowOptionsMenu(null);
+      fetchAssignments();
+    } catch (error) {
+      console.error('Error deleting assignment:', error);
+      setToast({ type: 'error', message: 'Failed to delete assignment' });
+    }
+  };
+
+  const handleAssignmentSuccess = () => {
+    fetchAssignments();
+    setShowCreationModal(false);
+    setEditingAssignment(null);
+  };
+
   const fetchAssignmentDetails = async (assignmentId: string) => {
     try {
-      const token = getAuthToken();
-      const response = await fetch(`http://localhost:5000/api/assignments/${assignmentId}`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        setSelectedAssignment(data.assignment);
-      }
+      const response = await assignmentsAPI.getById(assignmentId);
+      setSelectedAssignment(response.data.assignment);
     } catch (error) {
       console.error('Error fetching assignment details:', error);
       setToast({ type: 'error', message: 'Failed to load assignment details' });
     }
   };
 
-  const handleGradeSubmission = async () => {
-    if (!gradingModal.submission) return;
-
-    const gradeValue = parseFloat(grade);
-    if (isNaN(gradeValue) || gradeValue < 0 || gradeValue > (selectedAssignment?.max_points || 100)) {
-      setToast({ 
-        type: 'error', 
-        message: `Grade must be between 0 and ${selectedAssignment?.max_points || 100}` 
-      });
-      return;
-    }
-
-    setSubmitting(true);
-    try {
-      const token = getAuthToken();
-      const response = await fetch(
-        `http://localhost:5000/api/assignments/submissions/${gradingModal.submission._id}/grade`,
-        {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            grade: gradeValue,
-            feedback: feedback.trim()
-          })
-        }
-      );
-
-      if (response.ok) {
-        setToast({ type: 'success', message: 'Grade submitted successfully!' });
-        setGradingModal({ show: false, submission: null });
-        setGrade('');
-        setFeedback('');
-        
-        // Refresh assignment details
-        if (selectedAssignment) {
-          fetchAssignmentDetails(selectedAssignment._id);
-        }
-      } else {
-        const data = await response.json();
-        setToast({ type: 'error', message: data.error || 'Failed to submit grade' });
-      }
-    } catch (error) {
-      console.error('Error grading submission:', error);
-      setToast({ type: 'error', message: 'Failed to submit grade' });
-    } finally {
-      setSubmitting(false);
-    }
+  const openGradingModal = (submission: Submission) => {
+    setGradingSubmission(submission);
+    setShowGradingModal(true);
   };
 
-  const openGradingModal = (submission: Submission) => {
-    setGradingModal({ show: true, submission });
-    setGrade(submission.grade?.toString() || '');
-    setFeedback(submission.feedback || '');
+  const handleGradeSubmitted = () => {
+    // Refresh assignment details after grading
+    if (selectedAssignment) {
+      fetchAssignmentDetails(selectedAssignment._id);
+    }
+    setShowGradingModal(false);
+    setGradingSubmission(null);
   };
 
   const formatDate = (dateString: string) => {
@@ -333,87 +309,16 @@ export const TeacherAssignmentView: React.FC = () => {
         </div>
 
         {/* Grading Modal */}
-        {gradingModal.show && gradingModal.submission && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-lg max-w-2xl w-full">
-              <div className="p-6 border-b border-gray-200">
-                <h2 className="text-xl font-semibold text-gray-900">Grade Submission</h2>
-                <p className="text-gray-600 mt-1">{gradingModal.submission.student_name}</p>
-              </div>
-
-              <div className="p-6 space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Grade (out of {selectedAssignment.max_points})
-                  </label>
-                  <input
-                    type="number"
-                    value={grade}
-                    onChange={(e) => setGrade(e.target.value)}
-                    min="0"
-                    max={selectedAssignment.max_points}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    placeholder={`Enter grade (0-${selectedAssignment.max_points})`}
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Feedback
-                  </label>
-                  <textarea
-                    value={feedback}
-                    onChange={(e) => setFeedback(e.target.value)}
-                    rows={4}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none"
-                    placeholder="Provide feedback to the student..."
-                  />
-                </div>
-
-                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 flex items-start gap-3">
-                  <AlertCircle className="h-5 w-5 text-yellow-600 mt-0.5" />
-                  <div>
-                    <p className="text-sm font-medium text-yellow-800">Note</p>
-                    <p className="text-sm text-yellow-700">
-                      Student will receive a notification about their grade and feedback.
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="p-6 border-t border-gray-200 flex justify-end gap-3">
-                <button
-                  onClick={() => {
-                    setGradingModal({ show: false, submission: null });
-                    setGrade('');
-                    setFeedback('');
-                  }}
-                  className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
-                  disabled={submitting}
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleGradeSubmission}
-                  disabled={submitting || !grade}
-                  className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-                >
-                  {submitting ? (
-                    <>
-                      <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
-                      Submitting...
-                    </>
-                  ) : (
-                    <>
-                      <Award className="h-4 w-4" />
-                      Submit Grade
-                    </>
-                  )}
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
+        <GradingModal
+          isOpen={showGradingModal}
+          onClose={() => {
+            setShowGradingModal(false);
+            setGradingSubmission(null);
+          }}
+          submission={gradingSubmission}
+          maxPoints={selectedAssignment.max_points}
+          onGradeSubmitted={handleGradeSubmitted}
+        />
 
         {toast && (
           <Toast
@@ -428,12 +333,57 @@ export const TeacherAssignmentView: React.FC = () => {
 
   return (
     <div className="p-6">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900 mb-2">Assignment Management</h1>
-        <p className="text-gray-600">Review and grade student submissions</p>
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900 mb-2">Assignment Management</h1>
+          <p className="text-gray-600">Create, review and grade student submissions</p>
+        </div>
+        <button
+          onClick={handleCreateAssignment}
+          className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
+        >
+          <Plus className="h-5 w-5" />
+          Create Assignment
+        </button>
       </div>
 
-      <div className="space-y-4">
+      {/* Tabs */}
+      <div className="mb-6 border-b border-gray-200">
+        <div className="flex gap-4">
+          <button
+            onClick={() => setActiveTab('assignments')}
+            className={`px-4 py-3 font-medium transition-colors border-b-2 ${
+              activeTab === 'assignments'
+                ? 'border-blue-600 text-blue-600'
+                : 'border-transparent text-gray-600 hover:text-gray-900'
+            }`}
+          >
+            <div className="flex items-center gap-2">
+              <FileText className="h-5 w-5" />
+              Assignments
+            </div>
+          </button>
+          <button
+            onClick={() => setActiveTab('analytics')}
+            className={`px-4 py-3 font-medium transition-colors border-b-2 ${
+              activeTab === 'analytics'
+                ? 'border-blue-600 text-blue-600'
+                : 'border-transparent text-gray-600 hover:text-gray-900'
+            }`}
+          >
+            <div className="flex items-center gap-2">
+              <BarChart3 className="h-5 w-5" />
+              Analytics
+            </div>
+          </button>
+        </div>
+      </div>
+
+      {/* Tab Content */}
+      {activeTab === 'analytics' ? (
+        <AssignmentAnalytics />
+      ) : (
+        <div className="space-y-4">
         {assignments.length === 0 ? (
           <div className="bg-gray-50 rounded-lg p-12 text-center">
             <FileText className="h-12 w-12 text-gray-400 mx-auto mb-4" />
@@ -444,7 +394,14 @@ export const TeacherAssignmentView: React.FC = () => {
             <div key={assignment._id} className="bg-white rounded-lg border border-gray-200 p-6 hover:shadow-md transition-shadow">
               <div className="flex items-start justify-between">
                 <div className="flex-1">
-                  <h3 className="font-semibold text-gray-900 mb-2">{assignment.title}</h3>
+                  <div className="flex items-center gap-3 mb-2">
+                    <h3 className="font-semibold text-gray-900">{assignment.title}</h3>
+                    {!assignment.is_active && (
+                      <span className="px-2 py-1 bg-gray-100 text-gray-600 text-xs rounded-full">
+                        Inactive
+                      </span>
+                    )}
+                  </div>
                   <p className="text-gray-600 mb-3">{assignment.description}</p>
                   <p className="text-sm text-blue-600 mb-3">Course: {assignment.course_title}</p>
                   
@@ -464,18 +421,100 @@ export const TeacherAssignmentView: React.FC = () => {
                   </div>
                 </div>
 
-                <button
-                  onClick={() => fetchAssignmentDetails(assignment._id)}
-                  className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
-                >
-                  <Eye className="h-4 w-4" />
-                  View Submissions
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => fetchAssignmentDetails(assignment._id)}
+                    className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
+                  >
+                    <Eye className="h-4 w-4" />
+                    View Submissions
+                  </button>
+                  
+                  <div className="relative">
+                    <button
+                      onClick={() => setShowOptionsMenu(showOptionsMenu === assignment._id ? null : assignment._id)}
+                      className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+                    >
+                      <MoreVertical className="h-5 w-5" />
+                    </button>
+                    
+                    {showOptionsMenu === assignment._id && (
+                      <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-10">
+                        <button
+                          onClick={() => handleEditAssignment(assignment)}
+                          className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
+                        >
+                          <Edit className="h-4 w-4" />
+                          Edit Assignment
+                        </button>
+                        <button
+                          onClick={() => {
+                            setShowDeleteConfirm(assignment._id);
+                            setShowOptionsMenu(null);
+                          }}
+                          className="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                          Delete Assignment
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
               </div>
             </div>
           ))
         )}
-      </div>
+        
+        {/* Assignment Creation/Edit Modal */}
+      <AssignmentCreationModal
+        isOpen={showCreationModal}
+        onClose={() => {
+          setShowCreationModal(false);
+          setEditingAssignment(null);
+        }}
+        onSuccess={handleAssignmentSuccess}
+        editingAssignment={editingAssignment}
+      />
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg max-w-md w-full p-6">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="p-3 bg-red-100 rounded-full">
+                <AlertCircle className="h-6 w-6 text-red-600" />
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900">Delete Assignment</h3>
+                <p className="text-sm text-gray-600">This action cannot be undone</p>
+              </div>
+            </div>
+            
+            <p className="text-gray-700 mb-6">
+              Are you sure you want to delete this assignment? All student submissions will be preserved but the assignment will be marked as inactive.
+            </p>
+            
+            <div className="flex items-center justify-end gap-3">
+              <button
+                onClick={() => setShowDeleteConfirm(null)}
+                className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => handleDeleteAssignment(showDeleteConfirm)}
+                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors flex items-center gap-2"
+              >
+                <Trash2 className="h-4 w-4" />
+                Delete Assignment
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+        </div>
+      )}
 
       {toast && (
         <Toast

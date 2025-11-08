@@ -83,7 +83,13 @@ export const VideoList: React.FC<VideoListProps> = ({
     }
 
     try {
-      const token = localStorage.getItem('token');
+      // Get token - check both possible names
+      const token = localStorage.getItem('access_token') || localStorage.getItem('token');
+      if (!token) {
+        alert('Please login first. Token not found.');
+        return;
+      }
+
       const response = await fetch(`http://localhost:5000/api/videos/${videoId}`, {
         method: 'DELETE',
         headers: {
@@ -92,7 +98,8 @@ export const VideoList: React.FC<VideoListProps> = ({
       });
 
       if (!response.ok) {
-        throw new Error('Failed to delete video');
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Failed to delete video');
       }
 
       // Refresh list

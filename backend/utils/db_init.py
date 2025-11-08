@@ -24,8 +24,8 @@ def initialize_database(db):
     # Create sample enrollments
     create_sample_enrollments(db)
     
-    # Create sample assignments and quizzes
-    create_sample_assignments_and_quizzes(db)
+    # Create sample assignments
+    create_sample_assignments(db)
     
     print("✅ Database initialized successfully with sample data")
 
@@ -56,12 +56,7 @@ def create_indexes(db):
     db.submissions.create_index([("assignment_id", 1), ("student_id", 1)], unique=True)
     db.submissions.create_index("student_id")
     
-    # Quizzes collection indexes
-    db.quizzes.create_index("course_id")
-    
-    # Quiz attempts collection indexes
-    db.quiz_attempts.create_index("quiz_id")
-    db.quiz_attempts.create_index("student_id")
+
     
     # Chat history indexes
     db.chat_history.create_index("user_id")
@@ -331,7 +326,7 @@ def create_sample_enrollments(db):
                 'progress': 25 + (i * 25),  # Varying progress
                 'completed_materials': [],
                 'completed_assignments': [],
-                'completed_quizzes': [],
+
                 'is_active': True
             }
             
@@ -349,14 +344,13 @@ def create_sample_enrollments(db):
     
     print(f"📝 Created {len(enrollments)} sample enrollments")
 
-def create_sample_assignments_and_quizzes(db):
-    """Create sample assignments and quizzes"""
+def create_sample_assignments(db):
+    """Create sample assignments"""
     
     courses = list(db.courses.find())
     
     # Create assignments
     assignments = []
-    quizzes = []
     
     for course in courses:
         course_id = str(course['_id'])
@@ -380,58 +374,14 @@ def create_sample_assignments_and_quizzes(db):
                 'updated_at': datetime.utcnow()
             }
             assignments.append(assignment)
-        
-        # Create 2 quizzes per course
-        for i in range(2):
-            quiz = {
-                'title': f'{course["title"]} - Quiz {i+1}',
-                'description': f'Test your knowledge of {course["title"]} concepts',
-                'course_id': course_id,
-                'questions': [
-                    {
-                        'question': f'What is the main concept in {course["title"]}?',
-                        'type': 'mcq',
-                        'options': ['Option A', 'Option B', 'Option C', 'Option D'],
-                        'correct_answer': 'A',
-                        'explanation': 'This is the correct answer because...'
-                    },
-                    {
-                        'question': f'True or False: {course["title"]} is important for career development.',
-                        'type': 'true_false',
-                        'options': ['True', 'False'],
-                        'correct_answer': 'True',
-                        'explanation': 'This field is indeed important for career growth.'
-                    },
-                    {
-                        'question': f'Explain one key benefit of studying {course["title"]}.',
-                        'type': 'short_answer',
-                        'options': [],
-                        'correct_answer': 'career advancement',
-                        'explanation': 'Career advancement is a key benefit.'
-                    }
-                ],
-                'time_limit': 30,  # 30 minutes
-                'max_attempts': 2,
-                'start_time': None,
-                'end_time': None,
-                'shuffle_questions': True,
-                'show_results': True,
-                'is_active': True,
-                'created_by': teacher_id,
-                'generated_by_ai': False,
-                'created_at': datetime.utcnow(),
-                'updated_at': datetime.utcnow()
-            }
-            quizzes.append(quiz)
+
     
-    # Insert assignments and quizzes
+    # Insert assignments
     if assignments:
         db.assignments.insert_many(assignments)
         print(f"📋 Created {len(assignments)} sample assignments")
     
-    if quizzes:
-        db.quizzes.insert_many(quizzes)
-        print(f"❓ Created {len(quizzes)} sample quizzes")
+
 
 if __name__ == '__main__':
     # This can be run standalone for testing

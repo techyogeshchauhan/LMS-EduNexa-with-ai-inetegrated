@@ -36,7 +36,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted }) => {
     {
       icon: BookOpen,
       title: 'Interactive Courses',
-      description: 'Engaging content with videos, quizzes, and hands-on projects.',
+      description: 'Engaging content with videos, assignments, and hands-on projects.',
       color: 'from-green-500 to-blue-500'
     },
     {

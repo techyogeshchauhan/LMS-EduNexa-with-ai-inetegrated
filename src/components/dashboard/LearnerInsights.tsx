@@ -30,6 +30,16 @@ const LearnerInsights: React.FC<LearnerInsightsProps> = ({ className = '' }) => 
       setAlerts(alertsData.alerts.slice(0, 3)); // Show only top 3 alerts
     } catch (error) {
       console.error('Failed to fetch learner insights:', error);
+      // Set fallback data
+      setInsights({
+        slow_learners_count: 0,
+        fast_learners_count: 0,
+        students_at_risk: 0,
+        total_students: 0,
+        average_performance: 0,
+        inactive_students: 0
+      });
+      setAlerts([]);
     } finally {
       setLoading(false);
     }

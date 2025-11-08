@@ -80,10 +80,10 @@ I'm your personal AI tutor, ready to assist you with **{courses_text}** and much
 - Provide study strategies for each subject
 - Help you understand course materials better
 
-#### 📝 **Assignment & Quiz Guidance**
+#### 📝 **Assignment Guidance**
 - Break down complex assignments into manageable steps
-- Offer study tips for upcoming quizzes
-- Help you prepare for exams effectively
+- Offer study tips for upcoming exams
+- Help you prepare for assessments effectively
 
 #### 🎯 **Personalized Learning**
 - Create custom study schedules
@@ -97,7 +97,7 @@ I'm your personal AI tutor, ready to assist you with **{courses_text}** and much
 
 ### 🌟 **Quick Start Ideas:**
 - *"Help me understand [specific topic]"*
-- *"What should I focus on for my upcoming quiz?"*
+- *"What should I focus on for my upcoming exam?"*
 - *"Can you create a study plan for this week?"*
 - *"I'm struggling with [subject], can you help?"*
 
@@ -127,7 +127,7 @@ def generate_fallback_response(prompt, context=""):
 1. **Set specific goals** for each study session
 2. **Use the Pomodoro Technique** (25 minutes focused study, 5-minute break)
 3. **Review material regularly** instead of cramming
-4. **Practice with past quizzes** and assignments
+4. **Practice with past assignments** and exercises
 
 ### 🚀 Next Steps:
 Check your course materials and assignments in your dashboard. If you need specific help with a topic, try rephrasing your question or contact your instructor.
@@ -283,49 +283,7 @@ Review these key points regularly and practice applying them.
         print(f"Gemini API error: {str(e)}")
         return generate_fallback_response(content, context)
 
-def generate_quiz_help(question, context=""):
-    """Help with quiz questions without giving direct answers"""
-    if not GEMINI_API_KEY:
-        return f"""## 🎯 Quiz Help
 
-### 📚 Approach This Question:
-1. **Read carefully**: Make sure you understand what's being asked
-2. **Identify key concepts**: What topics does this relate to?
-3. **Eliminate wrong answers**: Rule out obviously incorrect options
-4. **Think it through**: Use your knowledge to reason through the answer
-
-### 💡 Study Strategy:
-- Review your course materials on this topic
-- Practice similar questions
-- Understand the underlying concepts, not just memorize
-
-### 🚀 You've Got This!
-Take your time and trust your preparation. Good luck! 😊"""
-    
-    try:
-        model = genai.GenerativeModel('gemini-2.5-flash')
-        prompt = f"""
-        A student needs help with a quiz question. DO NOT give the direct answer.
-        Instead, guide them to think through it themselves.
-        
-        Question: {question}
-        Student Context: {context}
-        
-        Provide:
-        1. Hints about what concepts to review
-        2. Strategies for approaching this type of question
-        3. Related topics to study
-        4. Encouragement
-        
-        DO NOT reveal the answer. Help them learn to solve it themselves.
-        Use markdown formatting with emojis.
-        """
-        
-        response = model.generate_content(prompt)
-        return response.text
-    except Exception as e:
-        print(f"Gemini API error: {str(e)}")
-        return generate_fallback_response(question, context)
 
 def generate_qa_response(question, context=""):
     """Answer questions about course materials"""
@@ -454,7 +412,7 @@ def ai_chat():
         
         data = request.get_json()
         message = data.get('message', '').strip()
-        chat_type = data.get('type', 'general')  # general, explain, summarize, quiz, qa
+        chat_type = data.get('type', 'general')  # general, explain, summarize, qa
         
         if not message:
             return jsonify({'error': 'Message is required'}), 400
@@ -474,22 +432,9 @@ def ai_chat():
                 course_titles = [course['title'] for course in courses]
                 context_parts.append(f"Enrolled courses: {', '.join(course_titles)}")
             
-            # Get recent performance
-            quiz_attempts = list(db.quiz_attempts.find({'student_id': user_id}).sort('submitted_at', -1).limit(5))
-            if quiz_attempts:
-                avg_score = sum(attempt.get('score', 0) for attempt in quiz_attempts) / len(quiz_attempts)
-                context_parts.append(f"Recent quiz average: {avg_score:.1f}%")
+
             
-            # Get weak areas
-            if quiz_attempts:
-                weak_courses = []
-                for attempt in quiz_attempts:
-                    if attempt.get('score', 0) < 70:
-                        course = db.courses.find_one({'_id': ObjectId(attempt.get('course_id', ''))})
-                        if course:
-                            weak_courses.append(course['title'])
-                if weak_courses:
-                    context_parts.append(f"Areas needing improvement: {', '.join(set(weak_courses))}")
+
         
         context = "; ".join(context_parts)
         
@@ -498,8 +443,7 @@ def ai_chat():
             ai_response = generate_explanation(message, context)
         elif chat_type == 'summarize':
             ai_response = generate_summary(message, context)
-        elif chat_type == 'quiz':
-            ai_response = generate_quiz_help(message, context)
+
         elif chat_type == 'qa':
             ai_response = generate_qa_response(message, context)
         else:
@@ -593,128 +537,7 @@ def summarize_content():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-@ai_bp.route('/generate-quiz', methods=['POST'])
-@jwt_required()
-def generate_quiz():
-    try:
-        user_id = get_jwt_identity()
-        db = current_app.db
-        
-        # Check if user is teacher or admin
-        user = db.users.find_one({'_id': ObjectId(user_id)})
-        if user['role'] not in ['teacher', 'admin']:
-            return jsonify({'error': 'Only teachers and admins can generate quizzes'}), 403
-        
-        data = request.get_json()
-        content = data.get('content', '').strip()
-        course_id = data.get('course_id')
-        num_questions = data.get('num_questions', 5)
-        difficulty = data.get('difficulty', 'medium')
-        
-        if not content:
-            return jsonify({'error': 'Content is required'}), 400
-        
-        if not course_id:
-            return jsonify({'error': 'Course ID is required'}), 400
-        
-        # Check if course exists and user has permission
-        course = db.courses.find_one({'_id': ObjectId(course_id)})
-        if not course:
-            return jsonify({'error': 'Course not found'}), 404
-        
-        if user['role'] == 'teacher' and course['teacher_id'] != user_id:
-            return jsonify({'error': 'Access denied'}), 403
-        
-        # Generate quiz using AI
-        prompt = f"""
-        Based on the following educational content, generate {num_questions} multiple choice questions 
-        with difficulty level: {difficulty}.
-        
-        For each question, provide:
-        1. The question text
-        2. Four options (A, B, C, D)
-        3. The correct answer (A, B, C, or D)
-        4. A brief explanation of why the answer is correct
-        
-        Content:
-        {content[:5000]}  # Limit content length
-        
-        Format the response as JSON with this structure:
-        {{
-            "questions": [
-                {{
-                    "question": "Question text here?",
-                    "options": ["Option A", "Option B", "Option C", "Option D"],
-                    "correct_answer": "A",
-                    "explanation": "Explanation here"
-                }}
-            ]
-        }}
-        """
-        
-        try:
-            model = genai.GenerativeModel('gemini-2.5-flash')
-            response = model.generate_content(prompt)
-            
-            # Parse the AI response
-            import json
-            # Extract JSON from response
-            response_text = response.text
-            json_match = re.search(r'\{.*\}', response_text, re.DOTALL)
-            
-            if json_match:
-                quiz_data = json.loads(json_match.group())
-                questions = quiz_data.get('questions', [])
-            else:
-                # Fallback: create a simple structure
-                questions = [{
-                    "question": "Sample question generated from content",
-                    "options": ["Option A", "Option B", "Option C", "Option D"],
-                    "correct_answer": "A",
-                    "explanation": "This is a sample explanation"
-                }]
-            
-        except Exception as e:
-            return jsonify({'error': f'Failed to generate quiz: {str(e)}'}), 500
-        
-        # Format questions for database
-        formatted_questions = []
-        for q in questions:
-            formatted_questions.append({
-                'question': q.get('question', ''),
-                'type': 'mcq',
-                'options': q.get('options', []),
-                'correct_answer': q.get('correct_answer', 'A'),
-                'explanation': q.get('explanation', '')
-            })
-        
-        # Save generated quiz
-        quiz_data = {
-            'title': f'AI Generated Quiz - {course["title"]}',
-            'description': f'Auto-generated quiz based on course content (Difficulty: {difficulty})',
-            'course_id': course_id,
-            'questions': formatted_questions,
-            'time_limit': 0,
-            'max_attempts': 3,
-            'shuffle_questions': True,
-            'show_results': True,
-            'is_active': False,  # Set to inactive by default
-            'created_by': user_id,
-            'generated_by_ai': True,
-            'created_at': datetime.utcnow(),
-            'updated_at': datetime.utcnow()
-        }
-        
-        result = db.quizzes.insert_one(quiz_data)
-        quiz_data['_id'] = str(result.inserted_id)
-        
-        return jsonify({
-            'message': 'Quiz generated successfully',
-            'quiz': quiz_data
-        }), 201
-        
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+
 
 @ai_bp.route('/recommendations', methods=['GET'])
 @jwt_required()
@@ -737,8 +560,7 @@ def get_recommendations():
             '_id': {'$in': [ObjectId(cid) for cid in enrolled_course_ids]}
         }))
         
-        # Get quiz attempts and scores
-        quiz_attempts = list(db.quiz_attempts.find({'student_id': user_id}))
+
         
         # Get assignment submissions
         submissions = list(db.submissions.find({'student_id': user_id}))
@@ -747,26 +569,7 @@ def get_recommendations():
         weak_areas = []
         strong_areas = []
         
-        # Analyze quiz performance
-        if quiz_attempts:
-            avg_score = sum(attempt.get('score', 0) for attempt in quiz_attempts) / len(quiz_attempts)
-            
-            # Get courses with low performance
-            course_performance = {}
-            for attempt in quiz_attempts:
-                course_id = attempt['course_id']
-                if course_id not in course_performance:
-                    course_performance[course_id] = []
-                course_performance[course_id].append(attempt.get('score', 0))
-            
-            for course_id, scores in course_performance.items():
-                avg_course_score = sum(scores) / len(scores)
-                course = db.courses.find_one({'_id': ObjectId(course_id)})
-                if course:
-                    if avg_course_score < 70:
-                        weak_areas.append(course['title'])
-                    elif avg_course_score > 85:
-                        strong_areas.append(course['title'])
+
         
         # Get available courses for recommendations
         available_courses = list(db.courses.find({
@@ -795,7 +598,7 @@ def get_recommendations():
         
         # Generate study tips
         study_tips = [
-            "Review your quiz results to identify knowledge gaps",
+            "Review your assignment results to identify knowledge gaps",
             "Create a study schedule and stick to it",
             "Use active learning techniques like summarization",
             "Join study groups for collaborative learning",
@@ -813,7 +616,7 @@ def get_recommendations():
                 'weak_areas': weak_areas,
                 'total_points': user.get('total_points', 0),
                 'courses_enrolled': len(enrolled_courses),
-                'quizzes_attempted': len(quiz_attempts),
+
                 'assignments_submitted': len(submissions)
             }
         }), 200

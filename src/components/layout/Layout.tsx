@@ -12,17 +12,30 @@ interface LayoutProps {
 
 export const Layout: React.FC<LayoutProps> = ({ children }) => {
   const { sidebarOpen } = useLMS();
-  const { user } = useAuth();
+  const { user, isAuthenticated } = useAuth();
 
   const renderSidebar = () => {
-    switch (user?.role) {
+    // Only render sidebar if user is authenticated
+    if (!isAuthenticated || !user) {
+      return null;
+    }
+
+    // Normalize role string (handle variations like 'Teacher', 'teacher', etc.)
+    const normalizedRole = user.role?.toLowerCase().trim();
+
+    switch (normalizedRole) {
       case 'student':
         return <StudentSidebar />;
       case 'teacher':
+      case 'instructor':
         return <TeacherSidebar />;
       case 'super_admin':
+      case 'superadmin':
+      case 'admin':
         return <SuperAdminSidebar />;
       default:
+        // Default to student sidebar for unknown roles
+        console.warn(`Unknown user role: ${user.role}, defaulting to student sidebar`);
         return <StudentSidebar />;
     }
   };

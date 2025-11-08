@@ -1,8 +1,11 @@
-import React, { createContext, useContext, useState } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { CourseAPI } from '../services/courseAPI';
+import { AssignmentAPI } from '../services/assignmentAPI';
+import { notificationsAPI } from '../config/api';
 
 interface Course {
   createdAt: number;
-  duration: ReactNode;
+  duration: string;
   id: string;
   title: string;
   description: string;
@@ -39,10 +42,19 @@ interface LMSContextType {
   courses: Course[];
   assignments: Assignment[];
   announcements: Announcement[];
+  loading: boolean;
+  error: string | null;
   sidebarOpen: boolean;
   setSidebarOpen: (open: boolean) => void;
   selectedCourse: Course | null;
   setSelectedCourse: (course: Course | null) => void;
+  fetchCourses: () => Promise<void>;
+  fetchAssignments: () => Promise<void>;
+  fetchAnnouncements: () => Promise<void>;
+  refreshData: () => Promise<void>;
+  lastRefreshTime: Date | null;
+  enableAutoRefresh: boolean;
+  setEnableAutoRefresh: (enable: boolean) => void;
 }
 
 const LMSContext = createContext<LMSContextType | undefined>(undefined);
@@ -58,76 +70,187 @@ export const useLMS = () => {
 export const LMSProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [selectedCourse, setSelectedCourse] = useState<Course | null>(null);
+  
+  // State for real data
   const [courses, setCourses] = useState<Course[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [assignments, setAssignments] = useState<Assignment[]>([]);
+  const [announcements, setAnnouncements] = useState<Announcement[]>([]);
+  
+  // Loading and error states
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  // Fetch real courses from backend
-  React.useEffect(() => {
-    fetchCourses();
+  // Auto-refresh state
+  const [lastRefreshTime, setLastRefreshTime] = useState<Date | null>(null);
+  const [enableAutoRefresh, setEnableAutoRefresh] = useState(true);
+  
+  // Auto-refresh interval (5 minutes)
+  const AUTO_REFRESH_INTERVAL = 5 * 60 * 1000;
+
+  // Data fetching methods
+  const fetchCourses = useCallback(async () => {
+    try {
+      setError(null);
+      
+      const apiCourses = await CourseAPI.getCourses();
+      
+      // Transform backend data to match frontend format
+      const transformedCourses: Course[] = apiCourses.map((course) => ({
+        id: course._id,
+        title: course.title,
+        description: course.description,
+        instructor: course.teacher_name || 'Instructor',
+        progress: course.average_progress || 0,
+        totalLessons: course.materials?.length || 0,
+        completedLessons: Math.floor((course.average_progress || 0) / 100 * (course.materials?.length || 0)),
+        thumbnail: course.thumbnail || 'https://images.pexels.com/photos/1181677/pexels-photo-1181677.jpeg?auto=compress&cs=tinysrgb&w=400',
+        category: course.category,
+        difficulty: course.difficulty,
+        rating: 4.5, // Default rating - could be enhanced with real rating data
+        students: course.enrolled_students,
+        createdAt: new Date(course.created_at).getTime(),
+        duration: course.duration
+      }));
+      
+      setCourses(transformedCourses);
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to fetch courses';
+      setError(errorMessage);
+      console.error('Failed to fetch courses:', err);
+    }
   }, []);
 
-  const fetchCourses = async () => {
+  const fetchAssignments = useCallback(async () => {
     try {
-      const token = localStorage.getItem('access_token') || localStorage.getItem('token');
-      if (!token) {
-        setLoading(false);
-        return;
-      }
+      setError(null);
+      
+      const apiAssignments = await AssignmentAPI.getAssignments();
+      
+      // Transform backend data to match frontend format
+      const transformedAssignments: Assignment[] = apiAssignments.map((assignment) => ({
+        id: assignment._id,
+        title: assignment.title,
+        courseId: assignment.course_id,
+        dueDate: assignment.due_date,
+        status: assignment.submission_status || 'pending',
+        grade: assignment.submission?.grade,
+        description: assignment.description
+      }));
+      
+      setAssignments(transformedAssignments);
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to fetch assignments';
+      setError(errorMessage);
+      console.error('Failed to fetch assignments:', err);
+    }
+  }, []);
 
-      const response = await fetch('http://localhost:5000/api/courses', {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
+  const fetchAnnouncements = useCallback(async () => {
+    try {
+      setError(null);
+      
+      const apiNotifications = await notificationsAPI.getAll(false, 20);
+      
+      // Transform notifications to announcements format
+      const transformedAnnouncements: Announcement[] = (apiNotifications as any).notifications?.map((notification: any) => ({
+        id: notification._id,
+        title: notification.title,
+        content: notification.message,
+        date: notification.created_at,
+        type: notification.type === 'alert' ? 'warning' : 'info'
+      })) || [];
+      
+      setAnnouncements(transformedAnnouncements);
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to fetch announcements';
+      setError(errorMessage);
+      console.error('Failed to fetch announcements:', err);
+    }
+  }, []);
 
-      if (response.ok) {
-        const data = await response.json();
-        // Transform backend data to match frontend format
-        const transformedCourses = data.courses?.map((course: any) => ({
-          id: course._id || course.id,
-          title: course.title,
-          description: course.description,
-          instructor: course.instructor || 'Instructor',
-          progress: course.progress || 0,
-          totalLessons: course.total_lessons || course.modules?.length || 0,
-          completedLessons: course.completed_lessons || 0,
-          thumbnail: course.thumbnail || 'https://images.pexels.com/photos/1181677/pexels-photo-1181677.jpeg?auto=compress&cs=tinysrgb&w=400',
-          category: course.category,
-          difficulty: course.difficulty || 'Beginner',
-          rating: course.rating || 4.5,
-          students: course.students || 0,
-          createdAt: course.created_at,
-          duration: course.duration
-        })) || [];
-        setCourses(transformedCourses);
-      }
-    } catch (error) {
-      console.error('Failed to fetch courses:', error);
+  const refreshData = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      // Fetch all data in parallel for better performance
+      await Promise.all([
+        fetchCourses(),
+        fetchAssignments(),
+        fetchAnnouncements()
+      ]);
+      
+      // Update last refresh time
+      setLastRefreshTime(new Date());
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to refresh data';
+      setError(errorMessage);
+      console.error('Failed to refresh data:', err);
     } finally {
       setLoading(false);
     }
-  };
+  }, [fetchCourses, fetchAssignments, fetchAnnouncements]);
 
-  // No mock data - use only real data from backend
+  // Initial data load on mount
+  useEffect(() => {
+    refreshData();
+  }, [refreshData]);
 
-  // No mock assignments - fetch from backend when needed
-  const assignments: Assignment[] = [];
+  // Auto-refresh mechanism
+  useEffect(() => {
+    if (!enableAutoRefresh) {
+      return;
+    }
 
-  // No mock announcements - fetch from backend when needed
-  const announcements: Announcement[] = [];
+    const intervalId = setInterval(() => {
+      console.log('Auto-refreshing LMS data...');
+      refreshData();
+    }, AUTO_REFRESH_INTERVAL);
 
-  // Use only real courses from backend
-  const displayCourses = courses;
+    // Cleanup interval on unmount or when auto-refresh is disabled
+    return () => {
+      clearInterval(intervalId);
+    };
+  }, [enableAutoRefresh, refreshData, AUTO_REFRESH_INTERVAL]);
+
+  // Listen for visibility change to refresh data when tab becomes visible
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && enableAutoRefresh) {
+        // Check if it's been more than 1 minute since last refresh
+        const now = new Date();
+        if (!lastRefreshTime || (now.getTime() - lastRefreshTime.getTime()) > 60000) {
+          console.log('Tab became visible, refreshing data...');
+          refreshData();
+        }
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [enableAutoRefresh, lastRefreshTime, refreshData]);
 
   return (
     <LMSContext.Provider value={{
-      courses: displayCourses,
+      courses,
       assignments,
       announcements,
+      loading,
+      error,
       sidebarOpen,
       setSidebarOpen,
       selectedCourse,
-      setSelectedCourse
+      setSelectedCourse,
+      fetchCourses,
+      fetchAssignments,
+      fetchAnnouncements,
+      refreshData,
+      lastRefreshTime,
+      enableAutoRefresh,
+      setEnableAutoRefresh
     }}>
       {children}
     </LMSContext.Provider>

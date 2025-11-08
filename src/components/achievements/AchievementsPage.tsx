@@ -53,14 +53,14 @@ export const AchievementsPage: React.FC = () => {
     },
     {
       id: '2',
-      title: 'Quiz Master',
-      description: 'Score 100% on 5 quizzes',
+      title: 'Assignment Master',
+      description: 'Score 100% on 5 assignments',
       icon: '🏆',
       category: 'performance',
       rarity: 'rare',
       points: 50,
       unlockedAt: '2024-01-25T14:20:00Z',
-      requirements: ['Score 100% on 5 quizzes']
+      requirements: ['Score 100% on 5 assignments']
     },
     {
       id: '3',

@@ -8,9 +8,12 @@ interface User {
   role: string;
   department?: string;
   year?: string;
+  semester?: string;
+  designation?: string;
   employee_id?: string;
   roll_number?: string;
   profile_pic?: string;
+  phone?: string;
   total_points?: number;
   last_login?: string;
 }
@@ -58,7 +61,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     try {
       await authAPI.validateToken();
       return true;
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Token validation failed:', error);
       return false;
     }
@@ -78,7 +81,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         // Try to refresh token
         try {
           await authAPI.refreshToken();
-        } catch (refreshError) {
+        } catch (refreshError: unknown) {
           console.error('Token refresh failed:', refreshError);
           tokenManager.clearTokens();
           setIsLoading(false);
@@ -87,9 +90,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       }
 
       // Get user profile
-      const response = await authAPI.getProfile();
+      const response = await authAPI.getProfile() as { user: User };
       setUser(response.user);
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Failed to load user:', error);
       tokenManager.clearTokens();
     } finally {
@@ -102,7 +105,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     try {
       const response = await authAPI.login(email, password);
       setUser(response.user);
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Login failed:', error);
       throw error;
     }
@@ -113,7 +116,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     try {
       const response = await authAPI.googleLogin(credential, role);
       setUser(response.user);
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Google login failed:', error);
       throw error;
     }
@@ -124,7 +127,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     try {
       const response = await authAPI.register(userData);
       setUser(response.user);
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Registration failed:', error);
       throw error;
     }
@@ -134,7 +137,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const logout = async () => {
     try {
       await authAPI.logout();
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Logout API call failed:', error);
     } finally {
       setUser(null);
@@ -146,7 +149,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const logoutAll = async () => {
     try {
       await authAPI.logoutAll();
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Logout all API call failed:', error);
     } finally {
       setUser(null);
@@ -157,9 +160,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   // Refresh user data
   const refreshUser = async () => {
     try {
-      const response = await authAPI.getProfile();
+      const response = await authAPI.getProfile() as { user: User };
       setUser(response.user);
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Failed to refresh user:', error);
       throw error;
     }

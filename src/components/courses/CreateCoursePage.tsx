@@ -9,16 +9,16 @@ import {
   Save,
   ArrowLeft,
   Image as ImageIcon,
-  FileText,
   Video,
-  Link as LinkIcon
+  AlertCircle
 } from 'lucide-react';
-import { getAuthToken, isTokenValid, isTeacher } from '../../utils/tokenHelper';
+import { validateForm, courseValidationRules, isValidFileSize } from '../../utils/validation';
 
 export const CreateCoursePage: React.FC = () => {
   const { user } = useAuth();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [uploadingVideos, setUploadingVideos] = useState<{[key: string]: number}>({});
+  const [errors, setErrors] = useState<Record<string, string>>({});
 
   const navigate = (path: string) => {
     window.history.pushState({}, '', path);
@@ -53,7 +53,7 @@ export const CreateCoursePage: React.FC = () => {
     lessons: Array<{
       id: string;
       title: string;
-      type: 'video' | 'document' | 'quiz' | 'assignment';
+      type: 'video' | 'document' | 'assignment';
       content: string; // URL or content
       duration: string; // e.g., "15 min"
       order: number;
@@ -175,17 +175,28 @@ export const CreateCoursePage: React.FC = () => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // Check file size (max 100MB for videos)
-    if (file.size > 100 * 1024 * 1024) {
-      alert('Video file size must be less than 100MB');
+    // Check file type
+    if (!file.type.startsWith('video/')) {
+      const errorMsg = 'Please select a valid video file (MP4, AVI, MOV, MKV, WEBM)';
+      setErrors(prev => ({ ...prev, video: errorMsg }));
+      alert(errorMsg);
       return;
     }
 
-    // Check file type
-    if (!file.type.startsWith('video/')) {
-      alert('Please select a video file');
+    // Check file size (max 100MB for videos)
+    if (!isValidFileSize(file.size, 100)) {
+      const errorMsg = `Video file size must be less than 100MB. Your file is ${(file.size / (1024 * 1024)).toFixed(2)}MB`;
+      setErrors(prev => ({ ...prev, video: errorMsg }));
+      alert(errorMsg);
       return;
     }
+    
+    // Clear video error
+    setErrors(prev => {
+      const newErrors = { ...prev };
+      delete newErrors.video;
+      return newErrors;
+    });
 
     const uploadKey = `${moduleId}-${lessonId}`;
     const lessonTitle = modules.find(m => m.id === moduleId)?.lessons.find(l => l.id === lessonId)?.title || 'Video';
@@ -270,13 +281,37 @@ export const CreateCoursePage: React.FC = () => {
   const handleThumbnailUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      if (file.size > 5 * 1024 * 1024) {
-        alert('File size must be less than 5MB');
+      // Validate file type
+      if (!file.type.startsWith('image/')) {
+        const errorMsg = 'Please select a valid image file (JPG, PNG, GIF, WEBP)';
+        setErrors(prev => ({ ...prev, thumbnail: errorMsg }));
+        alert(errorMsg);
         return;
       }
+      
+      // Validate file size
+      if (!isValidFileSize(file.size, 5)) {
+        const errorMsg = `Image file size must be less than 5MB. Your file is ${(file.size / (1024 * 1024)).toFixed(2)}MB`;
+        setErrors(prev => ({ ...prev, thumbnail: errorMsg }));
+        alert(errorMsg);
+        return;
+      }
+      
+      // Clear thumbnail error
+      setErrors(prev => {
+        const newErrors = { ...prev };
+        delete newErrors.thumbnail;
+        return newErrors;
+      });
+      
       const reader = new FileReader();
       reader.onload = (e) => {
         setThumbnail(e.target?.result as string);
+      };
+      reader.onerror = () => {
+        const errorMsg = 'Failed to read image file. Please try again.';
+        setErrors(prev => ({ ...prev, thumbnail: errorMsg }));
+        alert(errorMsg);
       };
       reader.readAsDataURL(file);
     }
@@ -285,17 +320,64 @@ export const CreateCoursePage: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    // Validation
-    if (!title.trim()) {
-      alert('Please enter a course title');
+    // Clear previous errors
+    setErrors({});
+    
+    // Validate basic course information
+    const formData = {
+      title,
+      description,
+      category,
+      max_students: maxStudents,
+      duration
+    };
+    
+    const validation = validateForm(formData, courseValidationRules);
+    
+    if (!validation.isValid) {
+      setErrors(validation.errors);
+      // Scroll to first error
+      const firstErrorField = Object.keys(validation.errors)[0];
+      const element = document.querySelector(`[name="${firstErrorField}"]`);
+      element?.scrollIntoView({ behavior: 'smooth', block: 'center' });
       return;
     }
-    if (!description.trim()) {
-      alert('Please enter a course description');
+    
+    // Validate modules and lessons
+    const validModules = modules.filter(m => m.title.trim());
+    if (validModules.length === 0) {
+      setErrors({ modules: 'Please add at least one module with a title to your course' });
+      window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
       return;
     }
-    if (!category) {
-      alert('Please select a category');
+    
+    // Check if modules have lessons
+    const modulesWithLessons = validModules.filter(m => 
+      m.lessons.some(l => l.title.trim() && l.content.trim())
+    );
+    if (modulesWithLessons.length === 0) {
+      setErrors({ modules: 'Each module must have at least one lesson with a title and content (video URL or document link)' });
+      window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+      return;
+    }
+    
+    // Check for lessons with incomplete data
+    const incompleteLessons: string[] = [];
+    validModules.forEach(module => {
+      module.lessons.forEach(lesson => {
+        if (lesson.title.trim() && !lesson.content.trim()) {
+          incompleteLessons.push(`"${lesson.title}" in module "${module.title}"`);
+        } else if (!lesson.title.trim() && lesson.content.trim()) {
+          incompleteLessons.push(`Untitled lesson in module "${module.title}"`);
+        }
+      });
+    });
+    
+    if (incompleteLessons.length > 0) {
+      setErrors({ 
+        modules: `The following lessons are incomplete: ${incompleteLessons.join(', ')}. Please provide both title and content for each lesson.` 
+      });
+      window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
       return;
     }
 
@@ -305,32 +387,59 @@ export const CreateCoursePage: React.FC = () => {
       // Import API
       const { apiClient, API_ENDPOINTS } = await import('../../config/api');
 
+      const maxStudentsNum = parseInt(maxStudents);
+      
       const courseData = {
         title: title.trim(),
         description: description.trim(),
         category,
         difficulty,
-        duration: duration.trim(),
+        duration: duration.trim() || 'Self-paced',
         thumbnail: thumbnail || 'https://images.pexels.com/photos/1181677/pexels-photo-1181677.jpeg?auto=compress&cs=tinysrgb&w=400',
         is_public: isPublic,
-        max_students: parseInt(maxStudents) || 50,
+        max_students: maxStudentsNum,
         prerequisites: prerequisites.filter(p => p.trim()),
         learning_objectives: learningObjectives.filter(o => o.trim()),
-        syllabus: syllabus.trim(),
-        modules: modules.map(m => ({
-          ...m,
-          lessons: m.lessons.filter(l => l.title.trim() && l.content.trim())
-        })).filter(m => m.title.trim()),
-        teacher_id: user?._id
+        modules: validModules.map(m => ({
+          title: m.title.trim(),
+          description: m.description.trim(),
+          lessons: m.lessons
+            .filter(l => l.title.trim() && l.content.trim())
+            .map(l => ({
+              title: l.title.trim(),
+              type: l.type,
+              content: l.content.trim(),
+              duration: l.duration.trim(),
+              order: l.order,
+              is_required: true
+            }))
+        })).filter(m => m.lessons.length > 0)
       };
 
-      await apiClient.post(API_ENDPOINTS.COURSES.BASE, courseData);
+      const response = await apiClient.post(API_ENDPOINTS.COURSES.BASE, courseData);
       
-      alert('Course created successfully!');
+      console.log('✅ Course created successfully:', response);
+      alert(`Course "${title}" created successfully! You will be redirected to your courses page.`);
       navigate('/courses');
     } catch (error: any) {
-      console.error('Error creating course:', error);
-      alert(`Failed to create course: ${error.message || 'Please try again'}`);
+      console.error('❌ Error creating course:', error);
+      
+      // Extract detailed error message
+      let errorMessage = 'Failed to create course. Please try again.';
+      
+      if (error.response?.data?.error) {
+        errorMessage = error.response.data.error;
+        // Add field-specific error if available
+        if (error.response.data.field) {
+          errorMessage = `${error.response.data.field}: ${errorMessage}`;
+        }
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
+      setErrors({ submit: errorMessage });
+      // Scroll to top to show error
+      window.scrollTo({ top: 0, behavior: 'smooth' });
     } finally {
       setIsSubmitting(false);
     }
@@ -352,6 +461,19 @@ export const CreateCoursePage: React.FC = () => {
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-8">
+        {/* Error Banner */}
+        {(errors.submit || errors.modules || errors.video || errors.thumbnail) && (
+          <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+            <div className="flex items-start gap-3">
+              <AlertCircle className="h-5 w-5 text-red-600 mt-0.5 flex-shrink-0" />
+              <div className="text-sm text-red-800">
+                <p className="font-medium mb-1">Error</p>
+                <p>{errors.submit || errors.modules || errors.video || errors.thumbnail}</p>
+              </div>
+            </div>
+          </div>
+        )}
+        
         {/* Basic Information */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
           <h2 className="text-xl font-semibold text-gray-900 mb-6">Basic Information</h2>
@@ -363,12 +485,18 @@ export const CreateCoursePage: React.FC = () => {
               </label>
               <input
                 type="text"
+                name="title"
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
                 placeholder="e.g., Introduction to Machine Learning"
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                  errors.title ? 'border-red-500' : 'border-gray-300'
+                }`}
                 required
               />
+              {errors.title && (
+                <p className="mt-1 text-sm text-red-600">{errors.title}</p>
+              )}
             </div>
 
             <div>
@@ -376,13 +504,19 @@ export const CreateCoursePage: React.FC = () => {
                 Description <span className="text-red-500">*</span>
               </label>
               <textarea
+                name="description"
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
                 placeholder="Provide a detailed description of your course..."
                 rows={4}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                  errors.description ? 'border-red-500' : 'border-gray-300'
+                }`}
                 required
               />
+              {errors.description && (
+                <p className="mt-1 text-sm text-red-600">{errors.description}</p>
+              )}
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -391,9 +525,12 @@ export const CreateCoursePage: React.FC = () => {
                   Category <span className="text-red-500">*</span>
                 </label>
                 <select
+                  name="category"
                   value={category}
                   onChange={(e) => setCategory(e.target.value)}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                    errors.category ? 'border-red-500' : 'border-gray-300'
+                  }`}
                   required
                 >
                   <option value="">Select Category</option>
@@ -401,6 +538,9 @@ export const CreateCoursePage: React.FC = () => {
                     <option key={cat} value={cat}>{cat}</option>
                   ))}
                 </select>
+                {errors.category && (
+                  <p className="mt-1 text-sm text-red-600">{errors.category}</p>
+                )}
               </div>
 
               <div>
@@ -433,15 +573,21 @@ export const CreateCoursePage: React.FC = () => {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Max Students
+                  Max Students <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="number"
+                  name="max_students"
                   value={maxStudents}
                   onChange={(e) => setMaxStudents(e.target.value)}
                   min="1"
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                    errors.max_students ? 'border-red-500' : 'border-gray-300'
+                  }`}
                 />
+                {errors.max_students && (
+                  <p className="mt-1 text-sm text-red-600">{errors.max_students}</p>
+                )}
               </div>
             </div>
 
@@ -652,7 +798,7 @@ export const CreateCoursePage: React.FC = () => {
                           >
                             <option value="video">📹 Video</option>
                             <option value="document">📄 Document</option>
-                            <option value="quiz">❓ Quiz</option>
+
                             <option value="assignment">📝 Assignment</option>
                           </select>
                         </div>

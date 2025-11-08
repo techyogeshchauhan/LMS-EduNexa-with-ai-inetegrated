@@ -40,13 +40,7 @@ export const API_ENDPOINTS = {
     GRADE: (submissionId: string) => `${API_BASE_URL}/assignments/submissions/${submissionId}/grade`,
   },
 
-  // Quizzes
-  QUIZZES: {
-    BASE: `${API_BASE_URL}/quizzes`,
-    BY_ID: (id: string) => `${API_BASE_URL}/quizzes/${id}`,
-    ATTEMPT: (id: string) => `${API_BASE_URL}/quizzes/${id}/attempt`,
-    ATTEMPTS: (id: string) => `${API_BASE_URL}/quizzes/${id}/attempts`,
-  },
+
 
   // Users
   USERS: {
@@ -64,7 +58,7 @@ export const API_ENDPOINTS = {
     CHAT: `${API_BASE_URL}/ai/chat`,
     CHAT_WELCOME: `${API_BASE_URL}/ai/chat/welcome`,
     SUMMARIZE: `${API_BASE_URL}/ai/summarize`,
-    GENERATE_QUIZ: `${API_BASE_URL}/ai/generate-quiz`,
+
     RECOMMENDATIONS: `${API_BASE_URL}/ai/recommendations`,
     CHAT_HISTORY: `${API_BASE_URL}/ai/chat-history`,
     LEARNING_PATH: `${API_BASE_URL}/ai/learning-path`,
@@ -76,6 +70,18 @@ export const API_ENDPOINTS = {
     COURSE: (id: string) => `${API_BASE_URL}/analytics/course/${id}`,
     STUDENT: (id: string) => `${API_BASE_URL}/analytics/student/${id}`,
     SYSTEM: `${API_BASE_URL}/analytics/system`,
+    TEACHER_DASHBOARD: `${API_BASE_URL}/analytics/teacher/dashboard`,
+    TEACHER_ASSIGNMENTS: `${API_BASE_URL}/analytics/teacher/assignments`,
+  },
+
+  // Student Progress
+  STUDENT_PROGRESS: {
+    ALL_STUDENTS: `${API_BASE_URL}/student-progress/teacher/students`,
+    STUDENT_DETAIL: (id: string) => `${API_BASE_URL}/student-progress/teacher/student/${id}`,
+    COURSE_PROGRESS: (id: string) => `${API_BASE_URL}/student-progress/teacher/course/${id}/progress`,
+    ENGAGEMENT_ALERTS: `${API_BASE_URL}/student-progress/teacher/engagement/alerts`,
+    ENGAGEMENT_SUMMARY: `${API_BASE_URL}/student-progress/teacher/engagement/summary`,
+    COURSE_ENGAGEMENT: (id: string) => `${API_BASE_URL}/student-progress/teacher/engagement/course/${id}/monitor`,
   },
 
   // Learner Analytics
@@ -137,14 +143,44 @@ export const getAuthHeaders = (): Record<string, string> => {
   return {};
 };
 
-// API client class with automatic token refresh
+// API client class with automatic token refresh and error handling
 export class ApiClient {
   private baseURL: string;
   private isRefreshing = false;
   private refreshPromise: Promise<void> | null = null;
+  private maxRetries = 2;
+  private retryDelay = 1000;
 
   constructor(baseURL: string = API_BASE_URL) {
     this.baseURL = baseURL;
+  }
+
+  private shouldRetry(error: any, attempt: number): boolean {
+    // Don't retry if max attempts reached
+    if (attempt >= this.maxRetries) {
+      return false;
+    }
+
+    // Retry on network errors
+    if (!error.response) {
+      return true;
+    }
+
+    // Retry on 5xx errors
+    if (error.response?.status >= 500) {
+      return true;
+    }
+
+    // Retry on 429 (rate limit)
+    if (error.response?.status === 429) {
+      return true;
+    }
+
+    return false;
+  }
+
+  private async delay(ms: number): Promise<void> {
+    return new Promise(resolve => setTimeout(resolve, ms));
   }
 
   private async refreshToken(): Promise<void> {
@@ -391,27 +427,14 @@ export const assignmentsAPI = {
     apiClient.post(API_ENDPOINTS.ASSIGNMENTS.GRADE(submissionId), { grade, feedback }),
 };
 
-export const quizzesAPI = {
-  getAll: () => apiClient.get(API_ENDPOINTS.QUIZZES.BASE),
-  getById: (id: string) => apiClient.get(API_ENDPOINTS.QUIZZES.BY_ID(id)),
-  create: (data: any) => apiClient.post(API_ENDPOINTS.QUIZZES.BASE, data),
-  attempt: (id: string, answers: any, timeTaken?: number) =>
-    apiClient.post(API_ENDPOINTS.QUIZZES.ATTEMPT(id), { answers, time_taken: timeTaken }),
-  getAttempts: (id: string) => apiClient.get(API_ENDPOINTS.QUIZZES.ATTEMPTS(id)),
-};
+
 
 export const aiAPI = {
   chat: (message: string) => apiClient.post(API_ENDPOINTS.AI.CHAT, { message }),
   getWelcomeMessage: () => apiClient.get(API_ENDPOINTS.AI.CHAT_WELCOME),
   summarize: (content: string, type: string = 'text') =>
     apiClient.post(API_ENDPOINTS.AI.SUMMARIZE, { content, type }),
-  generateQuiz: (content: string, courseId: string, numQuestions: number = 5, difficulty: string = 'medium') =>
-    apiClient.post(API_ENDPOINTS.AI.GENERATE_QUIZ, {
-      content,
-      course_id: courseId,
-      num_questions: numQuestions,
-      difficulty,
-    }),
+
   getRecommendations: () => apiClient.get(API_ENDPOINTS.AI.RECOMMENDATIONS),
   getChatHistory: (page: number = 1, limit: number = 20) =>
     apiClient.get(`${API_ENDPOINTS.AI.CHAT_HISTORY}?page=${page}&limit=${limit}`),

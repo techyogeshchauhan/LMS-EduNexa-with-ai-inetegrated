@@ -31,7 +31,7 @@ export const ProfilePage: React.FC = () => {
     year: user?.year || '',
     semester: user?.semester || '',
     roll_number: user?.roll_number || '',
-    designation: (user as any)?.designation || '',
+    designation: user?.designation || '',
     location: 'New York, NY',
     bio: 'Passionate learner focused on AI and Machine Learning. Always eager to explore new technologies and share knowledge with the community.',
     website: 'https://johndoe.dev',
@@ -85,7 +85,7 @@ export const ProfilePage: React.FC = () => {
       year: user?.year || '',
       semester: user?.semester || '',
       roll_number: user?.roll_number || '',
-      designation: (user as any)?.designation || '',
+      designation: user?.designation || '',
       location: 'New York, NY',
       bio: 'Passionate learner focused on AI and Machine Learning. Always eager to explore new technologies and share knowledge with the community.',
       website: 'https://johndoe.dev',
@@ -142,7 +142,7 @@ export const ProfilePage: React.FC = () => {
   const achievements = [
     { title: 'First Course Completed', description: 'Completed your first course', date: '2024-01-15', icon: '🎓' },
     { title: 'Week Streak', description: 'Studied for 7 consecutive days', date: '2024-01-20', icon: '🔥' },
-    { title: 'Quiz Master', description: 'Scored 100% on 5 quizzes', date: '2024-01-25', icon: '🏆' },
+    { title: 'Assignment Master', description: 'Scored 100% on 5 assignments', date: '2024-01-25', icon: '🏆' },
     { title: 'AI Enthusiast', description: 'Completed 3 AI courses', date: '2024-02-01', icon: '🤖' }
   ];
 
@@ -433,7 +433,7 @@ export const ProfilePage: React.FC = () => {
                     <label className="block text-sm font-medium text-gray-700 mb-2">Designation</label>
                     {isEditing ? (
                       <select
-                        value={user?.designation || ''}
+                        value={formData.designation}
                         onChange={(e) => setFormData({ ...formData, designation: e.target.value })}
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                       >
@@ -620,7 +620,7 @@ export const ProfilePage: React.FC = () => {
                 <p className="text-gray-500">1 day ago</p>
               </div>
               <div className="text-sm">
-                <p className="text-gray-900">Earned "Quiz Master" badge</p>
+                <p className="text-gray-900">Earned "Assignment Master" badge</p>
                 <p className="text-gray-500">3 days ago</p>
               </div>
             </div>

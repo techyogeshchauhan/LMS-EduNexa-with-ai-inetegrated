@@ -178,16 +178,16 @@ The system comes with pre-configured test accounts:
 - **Dashboard**: View enrolled courses, progress, and upcoming assignments
 - **Courses**: Browse and enroll in available courses
 - **Assignments**: Submit assignments and view grades
-- **Quizzes**: Take quizzes with instant feedback
+
 - **AI Assistant**: Get personalized learning help and recommendations
 - **Analytics**: Track learning progress and performance
 
 ### For Teachers
 - **Course Management**: Create and manage courses
-- **Content Upload**: Add materials, assignments, and quizzes
+- **Content Upload**: Add materials and assignments
 - **Student Monitoring**: View student progress and performance
 - **Grading**: Grade assignments and provide feedback
-- **AI Tools**: Generate quizzes automatically from content
+- **AI Tools**: Generate content summaries and recommendations
 - **Analytics**: Detailed course and student analytics
 
 ### For Admins
@@ -199,7 +199,7 @@ The system comes with pre-configured test accounts:
 ### AI Features
 - **Chatbot**: 24/7 AI assistant for learning support
 - **Content Summarization**: Automatically summarize PDFs and documents
-- **Quiz Generation**: Create quizzes from course content using AI
+- **Content Analysis**: Analyze and summarize course content using AI
 - **Personalized Recommendations**: Course and learning path suggestions
 - **Learning Analytics**: AI-powered insights into learning patterns
 
@@ -297,7 +297,7 @@ The backend provides a comprehensive REST API. Key endpoints:
 - **Authentication**: `/api/auth/*`
 - **Courses**: `/api/courses/*`
 - **Assignments**: `/api/assignments/*`
-- **Quizzes**: `/api/quizzes/*`
+
 - **Users**: `/api/users/*`
 - **AI Features**: `/api/ai/*`
 - **Analytics**: `/api/analytics/*`

@@ -200,8 +200,8 @@ def create_test_notifications():
                 'link': '/assignments'
             },
             {
-                'title': 'Quiz Graded',
-                'message': 'Your Python Basics quiz has been graded. You scored 92/100!',
+                'title': 'Assignment Graded',
+                'message': 'Your Python Basics assignment has been graded. You scored 92/100!',
                 'type': 'success',
                 'link': '/analytics'
             },

@@ -65,7 +65,7 @@ export const MessagesPage: React.FC = () => {
         id: '2',
         senderId: '4',
         senderName: 'Alice Chen',
-        content: 'Anyone want to review for the quiz tomorrow?',
+        content: 'Anyone want to review for the exam tomorrow?',
         timestamp: '2024-02-10T12:15:00Z',
         read: true
       },
@@ -107,7 +107,7 @@ export const MessagesPage: React.FC = () => {
         id: '4',
         senderId: '4',
         senderName: 'Alice Chen',
-        content: 'Anyone want to review for the quiz tomorrow?',
+        content: 'Anyone want to review for the exam tomorrow?',
         timestamp: '2024-02-10T12:15:00Z',
         read: true
       },

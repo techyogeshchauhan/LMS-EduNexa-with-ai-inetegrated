@@ -1,10 +1,17 @@
 from flask import Blueprint, request, jsonify, current_app, send_from_directory
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from bson import ObjectId
-from datetime import datetime
+from datetime import datetime, timedelta
 import os
 from werkzeug.utils import secure_filename
 from routes.notifications import create_notification
+from utils.validation import (
+    validate_course_data,
+    validate_material_data,
+    validate_file_type,
+    validate_file_size,
+    ValidationError
+)
 
 courses_bp = Blueprint('courses', __name__)
 
@@ -56,9 +63,81 @@ def get_courses():
                 course['teacher_name'] = teacher['name']
                 course['teacher_email'] = teacher['email']
             
-            # Get enrollment count
-            enrollment_count = db.enrollments.count_documents({'course_id': str(course['_id'])})
-            course['enrolled_students'] = enrollment_count
+            # Get enrollment statistics
+            enrollments = list(db.enrollments.find({'course_id': str(course['_id'])}))
+            course['enrolled_students'] = len(enrollments)
+            
+            # Calculate enrollment statistics and student progress data
+            if user['role'] == 'teacher' and enrollments:
+                # Calculate average progress
+                total_progress = sum([e.get('progress', 0) for e in enrollments])
+                course['average_progress'] = round(total_progress / len(enrollments), 2) if enrollments else 0
+                
+                # Calculate active students (students with recent activity)
+                seven_days_ago = datetime.utcnow() - timedelta(days=7)
+                active_students = 0
+                
+                # Get assignments for this course
+                assignments = list(db.assignments.find({'course_id': str(course['_id'])}))
+                assignment_ids = [str(a['_id']) for a in assignments]
+                
+                if assignment_ids:
+                    # Count students with recent submissions
+                    recent_submissions = db.submissions.find({
+                        'assignment_id': {'$in': assignment_ids},
+                        'submitted_at': {'$gte': seven_days_ago}
+                    })
+                    active_student_ids = set([s['student_id'] for s in recent_submissions])
+                    active_students = len(active_student_ids)
+                
+                course['active_students'] = active_students
+                course['engagement_rate'] = round((active_students / len(enrollments)) * 100, 2) if enrollments else 0
+                
+                # Calculate completion rate
+                completed_students = len([e for e in enrollments if e.get('progress', 0) >= 100])
+                course['completion_rate'] = round((completed_students / len(enrollments)) * 100, 2) if enrollments else 0
+                
+                # Get assignment statistics
+                course['total_assignments'] = len(assignments)
+                
+                if assignment_ids:
+                    total_submissions = db.submissions.count_documents({'assignment_id': {'$in': assignment_ids}})
+                    graded_submissions = db.submissions.count_documents({
+                        'assignment_id': {'$in': assignment_ids},
+                        'grade': {'$ne': None}
+                    })
+                    pending_submissions = db.submissions.count_documents({
+                        'assignment_id': {'$in': assignment_ids},
+                        'grade': None
+                    })
+                    
+                    course['total_submissions'] = total_submissions
+                    course['graded_submissions'] = graded_submissions
+                    course['pending_submissions'] = pending_submissions
+                    
+                    # Calculate average grade
+                    graded_subs = list(db.submissions.find({
+                        'assignment_id': {'$in': assignment_ids},
+                        'grade': {'$ne': None}
+                    }))
+                    if graded_subs:
+                        avg_grade = sum([s['grade'] for s in graded_subs]) / len(graded_subs)
+                        course['average_grade'] = round(avg_grade, 2)
+                    else:
+                        course['average_grade'] = 0
+                else:
+                    course['total_submissions'] = 0
+                    course['graded_submissions'] = 0
+                    course['pending_submissions'] = 0
+                    course['average_grade'] = 0
+                
+                # Student engagement metrics
+                course['student_performance'] = {
+                    'excellent': len([e for e in enrollments if e.get('progress', 0) >= 90]),
+                    'good': len([e for e in enrollments if 70 <= e.get('progress', 0) < 90]),
+                    'average': len([e for e in enrollments if 50 <= e.get('progress', 0) < 70]),
+                    'needs_improvement': len([e for e in enrollments if e.get('progress', 0) < 50])
+                }
             
             # Check if current user is enrolled (for students)
             if user['role'] == 'student':
@@ -124,11 +203,8 @@ def get_course(course_id):
             assignment['_id'] = str(assignment['_id'])
         course['assignments'] = assignments
         
-        # Get quizzes
-        quizzes = list(db.quizzes.find({'course_id': course_id}))
-        for quiz in quizzes:
-            quiz['_id'] = str(quiz['_id'])
-        course['quizzes'] = quizzes
+
+
         
         return jsonify({'course': course}), 200
         
@@ -149,26 +225,30 @@ def create_course():
         
         data = request.get_json()
         
-        # Validate required fields
+        # Validate and sanitize course data
+        try:
+            validated_data = validate_course_data(data)
+        except ValidationError as e:
+            return jsonify({'error': e.message, 'field': e.field}), 400
+        
+        # Ensure required fields are present
         required_fields = ['title', 'description', 'category']
         for field in required_fields:
-            if field not in data or not data[field]:
+            if field not in validated_data:
                 return jsonify({'error': f'{field} is required'}), 400
         
-        # Create course
+        # Create course with validated data
         course_data = {
-            'title': data['title'],
-            'description': data['description'],
-            'category': data['category'],
+            **validated_data,
             'teacher_id': user_id,
-            'difficulty': data.get('difficulty', 'Beginner'),
-            'duration': data.get('duration', ''),
-            'prerequisites': data.get('prerequisites', []),
-            'learning_objectives': data.get('learning_objectives', []),
-            'thumbnail': data.get('thumbnail', ''),
+            'difficulty': validated_data.get('difficulty', 'Beginner'),
+            'duration': validated_data.get('duration', ''),
+            'prerequisites': validated_data.get('prerequisites', []),
+            'learning_objectives': validated_data.get('learning_objectives', []),
+            'thumbnail': validated_data.get('thumbnail', ''),
             'is_active': True,
-            'is_public': data.get('is_public', True),
-            'max_students': data.get('max_students', 0),  # 0 means unlimited
+            'is_public': validated_data.get('is_public', True),
+            'max_students': validated_data.get('max_students', 0),  # 0 means unlimited
             'created_at': datetime.utcnow(),
             'updated_at': datetime.utcnow()
         }
@@ -229,22 +309,17 @@ def update_course(course_id):
         
         data = request.get_json()
         
-        # Fields that can be updated
-        updatable_fields = [
-            'title', 'description', 'category', 'difficulty', 'duration',
-            'prerequisites', 'learning_objectives', 'thumbnail', 'is_active',
-            'is_public', 'max_students'
-        ]
+        # Validate and sanitize course data
+        try:
+            validated_data = validate_course_data(data)
+        except ValidationError as e:
+            return jsonify({'error': e.message, 'field': e.field}), 400
         
-        update_data = {}
-        for field in updatable_fields:
-            if field in data:
-                update_data[field] = data[field]
-        
-        if not update_data:
+        if not validated_data:
             return jsonify({'error': 'No valid fields to update'}), 400
         
-        update_data['updated_at'] = datetime.utcnow()
+        validated_data['updated_at'] = datetime.utcnow()
+        update_data = validated_data
         
         # Update course
         db.courses.update_one(
@@ -306,7 +381,7 @@ def enroll_course(course_id):
             'progress': 0,
             'completed_materials': [],
             'completed_assignments': [],
-            'completed_quizzes': [],
+
             'is_active': True
         }
         
@@ -520,21 +595,25 @@ def upload_material(course_id):
         
         data = request.get_json()
         
-        # Validate required fields
+        # Validate and sanitize material data
+        try:
+            validated_data = validate_material_data(data)
+        except ValidationError as e:
+            return jsonify({'error': e.message, 'field': e.field}), 400
+        
+        # Ensure required fields are present
         required_fields = ['title', 'type', 'content']
         for field in required_fields:
-            if field not in data or not data[field]:
+            if field not in validated_data:
                 return jsonify({'error': f'{field} is required'}), 400
         
-        # Create material
+        # Create material with validated data
         material_data = {
             'course_id': course_id,
-            'title': data['title'],
-            'description': data.get('description', ''),
-            'type': data['type'],  # 'pdf', 'video', 'document', 'link'
-            'content': data['content'],  # file path or URL
-            'order': data.get('order', 0),
-            'is_required': data.get('is_required', False),
+            **validated_data,
+            'description': validated_data.get('description', ''),
+            'order': validated_data.get('order', 0),
+            'is_required': validated_data.get('is_required', False),
             'uploaded_by': user_id,
             'created_at': datetime.utcnow()
         }

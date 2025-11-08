@@ -3,6 +3,11 @@ from flask_jwt_extended import jwt_required, get_jwt_identity
 from bson import ObjectId
 from datetime import datetime
 from routes.notifications import create_notification
+from utils.validation import (
+    validate_assignment_data,
+    validate_grade_data,
+    ValidationError
+)
 
 assignments_bp = Blueprint('assignments', __name__)
 
@@ -153,37 +158,34 @@ def create_assignment():
         
         data = request.get_json()
         
-        # Validate required fields
+        # Validate and sanitize assignment data
+        try:
+            validated_data = validate_assignment_data(data)
+        except ValidationError as e:
+            return jsonify({'error': e.message, 'field': e.field}), 400
+        
+        # Ensure required fields are present
         required_fields = ['title', 'description', 'course_id', 'due_date']
         for field in required_fields:
-            if field not in data or not data[field]:
+            if field not in validated_data:
                 return jsonify({'error': f'{field} is required'}), 400
         
         # Check if course exists and user has permission
-        course = db.courses.find_one({'_id': ObjectId(data['course_id'])})
+        course = db.courses.find_one({'_id': ObjectId(validated_data['course_id'])})
         if not course:
             return jsonify({'error': 'Course not found'}), 404
         
         if user['role'] == 'teacher' and course['teacher_id'] != user_id:
             return jsonify({'error': 'Access denied'}), 403
         
-        # Parse due date
-        try:
-            due_date = datetime.fromisoformat(data['due_date'].replace('Z', '+00:00'))
-        except ValueError:
-            return jsonify({'error': 'Invalid due date format'}), 400
-        
-        # Create assignment
+        # Create assignment with validated data
         assignment_data = {
-            'title': data['title'],
-            'description': data['description'],
-            'course_id': data['course_id'],
-            'instructions': data.get('instructions', ''),
-            'due_date': due_date,
-            'max_points': data.get('max_points', 100),
-            'submission_type': data.get('submission_type', 'file'),  # 'file', 'text', 'both'
-            'allowed_file_types': data.get('allowed_file_types', []),
-            'max_file_size': data.get('max_file_size', 10),  # MB
+            **validated_data,
+            'instructions': validated_data.get('instructions', ''),
+            'max_points': validated_data.get('max_points', 100),
+            'submission_type': validated_data.get('submission_type', 'file'),
+            'allowed_file_types': validated_data.get('allowed_file_types', []),
+            'max_file_size': validated_data.get('max_file_size', 10),
             'is_active': True,
             'created_by': user_id,
             'created_at': datetime.utcnow(),
@@ -221,27 +223,17 @@ def update_assignment(assignment_id):
         
         data = request.get_json()
         
-        # Fields that can be updated
-        updatable_fields = [
-            'title', 'description', 'instructions', 'due_date', 'max_points',
-            'submission_type', 'allowed_file_types', 'max_file_size', 'is_active'
-        ]
+        # Validate and sanitize assignment data
+        try:
+            validated_data = validate_assignment_data(data)
+        except ValidationError as e:
+            return jsonify({'error': e.message, 'field': e.field}), 400
         
-        update_data = {}
-        for field in updatable_fields:
-            if field in data:
-                if field == 'due_date':
-                    try:
-                        update_data[field] = datetime.fromisoformat(data[field].replace('Z', '+00:00'))
-                    except ValueError:
-                        return jsonify({'error': 'Invalid due date format'}), 400
-                else:
-                    update_data[field] = data[field]
-        
-        if not update_data:
+        if not validated_data:
             return jsonify({'error': 'No valid fields to update'}), 400
         
-        update_data['updated_at'] = datetime.utcnow()
+        validated_data['updated_at'] = datetime.utcnow()
+        update_data = validated_data
         
         # Update assignment
         db.assignments.update_one(
@@ -381,22 +373,20 @@ def grade_submission(submission_id):
         
         data = request.get_json()
         
-        # Validate grade
-        if 'grade' not in data:
+        # Validate and sanitize grade data
+        max_points = assignment.get('max_points', 100)
+        try:
+            validated_data = validate_grade_data(data, max_points)
+        except ValidationError as e:
+            return jsonify({'error': e.message, 'field': e.field}), 400
+        
+        if 'grade' not in validated_data:
             return jsonify({'error': 'Grade is required'}), 400
         
-        try:
-            grade = float(data['grade'])
-            max_points = assignment.get('max_points', 100)
-            if grade < 0 or grade > max_points:
-                return jsonify({'error': f'Grade must be between 0 and {max_points}'}), 400
-        except ValueError:
-            return jsonify({'error': 'Invalid grade format'}), 400
-        
-        # Update submission
+        # Update submission with validated data
         update_data = {
-            'grade': grade,
-            'feedback': data.get('feedback', ''),
+            'grade': validated_data['grade'],
+            'feedback': validated_data.get('feedback', ''),
             'status': 'graded',
             'graded_at': datetime.utcnow(),
             'graded_by': user_id

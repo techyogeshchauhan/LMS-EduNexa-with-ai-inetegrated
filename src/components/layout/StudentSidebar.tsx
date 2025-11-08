@@ -6,7 +6,6 @@ import {
   Home, 
   BookOpen, 
   FileText as Assignment, 
-  MessageSquare, 
   BarChart3, 
   Settings, 
   Brain, 
@@ -25,13 +24,17 @@ interface SidebarItem {
   badge?: number;
 }
 
+interface SidebarSection {
+  items: SidebarItem[];
+}
+
 export const StudentSidebar: React.FC = () => {
   const { sidebarOpen, setSidebarOpen } = useLMS();
   const { user } = useAuth();
   const [unreadNotifications, setUnreadNotifications] = useState(0);
-  const [unreadMessages, setUnreadMessages] = useState(0);
   const [pendingAssignments, setPendingAssignments] = useState(0);
   const [isMobile, setIsMobile] = useState(false);
+  const [currentPath, setCurrentPath] = useState(window.location.pathname);
 
   // Detect mobile screen
   useEffect(() => {
@@ -43,6 +46,24 @@ export const StudentSidebar: React.FC = () => {
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
+  // Track current path for active state highlighting
+  useEffect(() => {
+    const handlePathChange = () => {
+      setCurrentPath(window.location.pathname);
+    };
+
+    // Listen for popstate events (back/forward navigation)
+    window.addEventListener('popstate', handlePathChange);
+    
+    // Also listen for custom navigation events
+    window.addEventListener('navigation', handlePathChange);
+
+    return () => {
+      window.removeEventListener('popstate', handlePathChange);
+      window.removeEventListener('navigation', handlePathChange);
+    };
+  }, []);
+
   // Fetch unread counts
   useEffect(() => {
     const fetchCounts = async () => {
@@ -51,7 +72,6 @@ export const StudentSidebar: React.FC = () => {
         setUnreadNotifications((notifData as any).unread_count || 0);
         
         // TODO: Fetch actual counts from APIs when ready
-        setUnreadMessages(0);
         setPendingAssignments(0);
       } catch (error) {
         console.error('Failed to fetch counts:', error);
@@ -67,19 +87,45 @@ export const StudentSidebar: React.FC = () => {
     }
   }, [user]);
 
-  const navigationItems: SidebarItem[] = [
-    { icon: Home, label: 'Dashboard', href: '/dashboard' },
-    { icon: BookOpen, label: 'My Courses', href: '/courses' },
-    { icon: Assignment, label: 'Assignments', href: '/assignments', badge: pendingAssignments || undefined },
-    { icon: MessageSquare, label: 'Discussions', href: '/discussions', badge: unreadMessages || undefined },
-    { icon: BarChart3, label: 'My Progress', href: '/analytics' },
-    { icon: Brain, label: 'AI Assistant', href: '/ai-assistant' },
-    { icon: Calendar, label: 'Schedule', href: '/schedule' },
-    { icon: Trophy, label: 'Achievements', href: '/achievements' },
-    { icon: Bell, label: 'Notifications', href: '/notifications', badge: unreadNotifications || undefined },
-    { icon: User, label: 'Profile', href: '/profile' },
-    { icon: Settings, label: 'Settings', href: '/settings' }
+  // Navigation organized into 3 logical sections
+  const navigationSections: SidebarSection[] = [
+    {
+      // Core Learning Section - Primary features
+      items: [
+        { icon: Home, label: 'Dashboard', href: '/dashboard' },
+        { icon: BookOpen, label: 'My Courses', href: '/courses' },
+        { icon: Assignment, label: 'Assignments', href: '/assignments', badge: pendingAssignments || undefined }
+      ]
+    },
+    {
+      // Learning Tools Section
+      items: [
+        { icon: BarChart3, label: 'My Progress', href: '/analytics' },
+        { icon: Brain, label: 'AI Assistant', href: '/ai-assistant' },
+        { icon: Calendar, label: 'Schedule', href: '/schedule' },
+        { icon: Trophy, label: 'Achievements', href: '/achievements' }
+      ]
+    },
+    {
+      // Personal Section
+      items: [
+        { icon: Bell, label: 'Notifications', href: '/notifications', badge: unreadNotifications || undefined },
+        { icon: User, label: 'Profile', href: '/profile' },
+        { icon: Settings, label: 'Settings', href: '/settings' }
+      ]
+    }
   ];
+
+  const handleNavigation = (e: React.MouseEvent<HTMLAnchorElement>, href: string) => {
+    e.preventDefault();
+    window.history.pushState({}, '', href);
+    window.dispatchEvent(new PopStateEvent('popstate'));
+    
+    // Close sidebar on mobile after navigation
+    if (isMobile) {
+      setSidebarOpen(false);
+    }
+  };
 
   return (
     <>
@@ -124,26 +170,44 @@ export const StudentSidebar: React.FC = () => {
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 px-2 sm:px-4 py-4 sm:py-6 space-y-1 sm:space-y-2 overflow-y-auto">
-          {navigationItems.map((item, index) => (
-            <a
-              key={index}
-              href={item.href}
-              onClick={() => isMobile && setSidebarOpen(false)}
-              className="flex items-center gap-3 px-2 sm:px-3 py-2.5 sm:py-3 text-sm sm:text-base text-gray-700 rounded-lg hover:bg-blue-50 hover:text-blue-600 transition-all duration-200 group"
-            >
-              <item.icon className="h-5 w-5 flex-shrink-0" />
-              {(sidebarOpen || isMobile) && (
-                <>
-                  <span className="font-medium">{item.label}</span>
-                  {item.badge && (
-                    <span className="ml-auto bg-red-500 text-white text-xs px-2 py-0.5 sm:py-1 rounded-full min-w-[20px] text-center">
-                      {item.badge > 9 ? '9+' : item.badge}
-                    </span>
-                  )}
-                </>
+        <nav className="flex-1 px-2 sm:px-4 py-4 sm:py-6 overflow-y-auto">
+          {navigationSections.map((section, sectionIndex) => (
+            <div key={sectionIndex}>
+              {/* Navigation Items within Section - 8px spacing between items (space-y-2 = 0.5rem = 8px) */}
+              <div className="space-y-2">
+                {section.items.map((item, itemIndex) => (
+                  <a
+                    key={itemIndex}
+                    href={item.href}
+                    onClick={(e) => handleNavigation(e, item.href)}
+                    className={`flex items-center gap-3 px-2 sm:px-3 py-2.5 sm:py-3 text-sm sm:text-base rounded-lg transition-all duration-200 group ${
+                      window.location.pathname === item.href
+                        ? 'bg-blue-50 text-blue-600'
+                        : 'text-gray-700 hover:bg-blue-50 hover:text-blue-600'
+                    }`}
+                  >
+                    <item.icon className="h-5 w-5 flex-shrink-0" />
+                    {(sidebarOpen || isMobile) && (
+                      <>
+                        <span className="font-medium">{item.label}</span>
+                        {item.badge && item.badge > 0 && (
+                          <span className="ml-auto bg-red-500 text-white text-xs px-2 py-0.5 sm:py-1 rounded-full min-w-[20px] text-center">
+                            {item.badge > 9 ? '9+' : item.badge}
+                          </span>
+                        )}
+                      </>
+                    )}
+                  </a>
+                ))}
+              </div>
+              
+              {/* Section Divider - 16px spacing between sections (my-4 = 1rem = 16px) */}
+              {sectionIndex < navigationSections.length - 1 && (
+                <div className={`my-4 ${sidebarOpen || isMobile ? 'mx-4' : 'mx-2'}`}>
+                  <div className="h-px bg-gray-200" />
+                </div>
               )}
-            </a>
+            </div>
           ))}
         </nav>
 

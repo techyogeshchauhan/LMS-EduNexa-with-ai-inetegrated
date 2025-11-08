@@ -35,7 +35,7 @@ interface CourseModule {
   description: string;
   duration: string;
   completed: boolean;
-  type: 'video' | 'reading' | 'quiz' | 'assignment';
+  type: 'video' | 'reading' | 'assignment';
   materials: {
     id: string;
     title: string;
@@ -80,7 +80,7 @@ export const CourseDetailPage: React.FC<CourseDetailPageProps> = ({ courseId }) 
     materials: { completed: 0, total: 0, percentage: 0 },
     videos: { completed: 0, total: 0, percentage: 0 },
     assignments: { completed: 0, total: 0, percentage: 0 },
-    quizzes: { completed: 0, total: 0, percentage: 0 },
+
     overall: 0
   });
   const [isRefreshingProgress, setIsRefreshingProgress] = useState(false);
@@ -201,32 +201,26 @@ export const CourseDetailPage: React.FC<CourseDetailPageProps> = ({ courseId }) 
       assignments.filter(a => a.status === 'submitted' || a.status === 'graded').length || 0;
     const assignmentsPercentage = totalAssignments > 0 ? (submittedAssignments / totalAssignments) * 100 : 0;
 
-    // Quizzes progress
-    const totalQuizzes = progressData?.quizzes?.total || 0;
-    const completedQuizzes = progressData?.quizzes?.completed || 0;
-    const quizzesPercentage = totalQuizzes > 0 ? (completedQuizzes / totalQuizzes) * 100 : 0;
+
 
     // Calculate weighted overall progress
-    // Weight: Materials 30%, Videos 30%, Assignments 25%, Quizzes 15%
+    // Weight: Materials 40%, Videos 40%, Assignments 20%
     let overallProgress = 0;
     let totalWeight = 0;
 
     if (totalMaterials > 0) {
-      overallProgress += materialsPercentage * 0.3;
-      totalWeight += 0.3;
+      overallProgress += materialsPercentage * 0.4;
+      totalWeight += 0.4;
     }
     if (totalVideos > 0) {
-      overallProgress += videosPercentage * 0.3;
-      totalWeight += 0.3;
+      overallProgress += videosPercentage * 0.4;
+      totalWeight += 0.4;
     }
     if (totalAssignments > 0) {
-      overallProgress += assignmentsPercentage * 0.25;
-      totalWeight += 0.25;
+      overallProgress += assignmentsPercentage * 0.2;
+      totalWeight += 0.2;
     }
-    if (totalQuizzes > 0) {
-      overallProgress += quizzesPercentage * 0.15;
-      totalWeight += 0.15;
-    }
+
 
     // Normalize if not all components exist
     if (totalWeight > 0) {
@@ -249,11 +243,7 @@ export const CourseDetailPage: React.FC<CourseDetailPageProps> = ({ courseId }) 
         total: totalAssignments,
         percentage: Math.round(assignmentsPercentage)
       },
-      quizzes: {
-        completed: completedQuizzes,
-        total: totalQuizzes,
-        percentage: Math.round(quizzesPercentage)
-      },
+
       overall: Math.round(overallProgress)
     };
   };
@@ -679,7 +669,7 @@ export const CourseDetailPage: React.FC<CourseDetailPageProps> = ({ courseId }) 
 
       {/* Detailed Progress Breakdown */}
       {(detailedProgress.materials.total > 0 || detailedProgress.videos.total > 0 ||
-        detailedProgress.assignments.total > 0 || detailedProgress.quizzes.total > 0) && (
+        detailedProgress.assignments.total > 0) && (
           <div className={`bg-white rounded-lg border border-gray-200 p-4 sm:p-6 transition-all ${isRefreshingProgress ? 'ring-2 ring-blue-200' : ''}`}>
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-base sm:text-lg font-semibold text-gray-900">Progress Breakdown</h3>
@@ -751,25 +741,7 @@ export const CourseDetailPage: React.FC<CourseDetailPageProps> = ({ courseId }) 
                 </div>
               )}
 
-              {detailedProgress.quizzes.total > 0 && (
-                <div>
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center gap-2">
-                      <Award className="h-4 w-4 text-green-600" />
-                      <span className="text-sm font-medium text-gray-700">Quizzes</span>
-                    </div>
-                    <span className="text-sm text-gray-600">
-                      {detailedProgress.quizzes.completed}/{detailedProgress.quizzes.total} ({detailedProgress.quizzes.percentage}%)
-                    </span>
-                  </div>
-                  <div className="w-full bg-gray-200 rounded-full h-2">
-                    <div
-                      className="bg-green-600 h-2 rounded-full transition-all duration-300"
-                      style={{ width: `${detailedProgress.quizzes.percentage}%` }}
-                    ></div>
-                  </div>
-                </div>
-              )}
+
             </div>
           </div>
         )}
@@ -1178,17 +1150,7 @@ export const CourseDetailPage: React.FC<CourseDetailPageProps> = ({ courseId }) 
                   </div>
                 )}
 
-                {detailedProgress.quizzes.total > 0 && (
-                  <div className="flex items-center justify-between p-2 bg-gray-50 rounded">
-                    <span className="text-gray-600 flex items-center gap-1">
-                      <Award className="h-3 w-3" />
-                      Quizzes
-                    </span>
-                    <span className="font-medium text-gray-900">
-                      {detailedProgress.quizzes.completed}/{detailedProgress.quizzes.total}
-                    </span>
-                  </div>
-                )}
+
               </div>
             </div>
           </div>
